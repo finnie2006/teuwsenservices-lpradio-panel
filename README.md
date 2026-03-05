@@ -1,6 +1,9 @@
 # LP Radio Panel
 
 Interactieve LP-radio panel plugin voor Grafana.
+<img width="923" height="294" alt="image" src="https://github.com/user-attachments/assets/1fee096a-4558-4c24-8491-615f5b47aa5e" />
+<img width="1867" height="1080" alt="image" src="https://github.com/user-attachments/assets/3af14908-8ec9-43c5-a946-c66bcbb55813" />
+
 
 ## Wat deze plugin doet
 
