@@ -51,7 +51,7 @@
         }
       ],
       "title": "Sample Panel Title",
-      "type": "teuwsenservices-lpradio-panel"
+      "type": "teuwsenservices-radio-panel"
     },
     {
       "datasource": {
@@ -82,7 +82,7 @@
         }
       ],
       "title": "Sample Panel Title",
-      "type": "teuwsenservices-lpradio-panel"
+      "type": "teuwsenservices-radio-panel"
     }
   ],
   "refresh": "",
@@ -97,7 +97,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Provisioned lp-radio-panel dashboard",
+  "title": "Provisioned radio-panel dashboard",
   "uid": "a538aeff-5a8a-42a5-901c-938d896fdd6f",
   "version": 1,
   "weekStart": ""

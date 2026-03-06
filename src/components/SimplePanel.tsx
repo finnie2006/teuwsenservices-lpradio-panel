@@ -6,6 +6,31 @@ import { useStyles2 } from '@grafana/ui';
 
 interface Props extends PanelProps<SimpleOptions> {}
 
+interface NowPlayingTrack {
+  artist: string;
+  song: string;
+  coverUrl: string;
+}
+
+interface NowPlayingPresetConfig {
+  apiUrl: string;
+}
+
+declare global {
+  interface Window {
+    __lpRadioGlobalPlayer?: HTMLAudioElement;
+  }
+}
+
+const nowPlayingPresets: Record<string, NowPlayingPresetConfig> = {
+  'npo-sterren-nl': {
+    apiUrl: 'https://www.nporadio5.nl/sterrennl/api/miniplayer/info?channel=npo-sterren-nl',
+  },
+  'arrow-classic-rock': {
+    apiUrl: 'https://player.arrow.nl/index.php?c=Arrow%20Classic%20Rock&_=',
+  },
+};
+
 const getStyles = () => {
   const spin = keyframes`
     from { transform: rotate(0deg); }
@@ -31,7 +56,7 @@ const getStyles = () => {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      width: 200px;
+      width: 260px;
       text-align: center;
       transition: color 0.5s ease;
     `,
@@ -110,6 +135,8 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
     name: station?.name || fallback.name,
     url: station?.url || fallback.url,
     logo: station?.logo || fallback.logo,
+    nowPlayingPreset: station?.nowPlayingPreset || fallback.nowPlayingPreset,
+    nowPlayingApiUrl: station?.nowPlayingApiUrl || fallback.nowPlayingApiUrl,
   });
 
   return {
@@ -153,6 +180,8 @@ const resolveStation = (station: StationOption, replaceVariables: Props['replace
   name: replaceVariables(station.name),
   url: replaceVariables(station.url),
   logo: replaceVariables(station.logo),
+  nowPlayingPreset: replaceVariables(station.nowPlayingPreset),
+  nowPlayingApiUrl: replaceVariables(station.nowPlayingApiUrl),
 });
 
 const stationByDay = (day: number, stations: StationsByDay): StationOption => {
@@ -183,9 +212,99 @@ const isOverrideDay = (day: number, days: SimpleOptions['thursdayOverride']['day
   return map[day] ?? false;
 };
 
+const getNowPlayingApiUrl = (
+  preset: string,
+  customApiUrl: string,
+  replaceVariables: Props['replaceVariables']
+): string => {
+  if (preset === 'none') {
+    return '';
+  }
+
+  const resolvedCustomUrl = replaceVariables(customApiUrl).trim();
+  if (resolvedCustomUrl.length > 0) {
+    return resolvedCustomUrl;
+  }
+
+  return nowPlayingPresets[preset]?.apiUrl ?? '';
+};
+
+const parseSterrenNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
+  const track = payload?.data?.radioTrackPlays?.data?.[0];
+  const artist = track?.artist?.toString().trim() ?? '';
+  const song = track?.song?.toString().trim() ?? '';
+  const coverUrl = track?.radioTracks?.coverUrl?.toString().trim() ?? '';
+
+  if (artist.length === 0 && song.length === 0) {
+    return null;
+  }
+
+  return { artist, song, coverUrl };
+};
+
+const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
+  const artist = payload?.artist?.toString().trim() ?? '';
+  const song = payload?.title?.toString().trim() ?? '';
+  const rawImage = payload?.image?.toString().trim() ?? '';
+  const normalizedImage = rawImage.replace(/^\/+/, '');
+  const coverUrl =
+    normalizedImage.length === 0
+      ? ''
+      : /^https?:\/\//i.test(normalizedImage)
+        ? normalizedImage
+        : `https://player.arrow.nl/${normalizedImage}`;
+
+  if (artist.length === 0 && song.length === 0) {
+    return null;
+  }
+
+  return { artist, song, coverUrl };
+};
+
+const parseNowPlayingTrack = (preset: string, payload: any): NowPlayingTrack | null => {
+  if (preset === 'arrow-classic-rock') {
+    return parseArrowNowPlayingTrack(payload);
+  }
+
+  return parseSterrenNowPlayingTrack(payload);
+};
+
+const withNoCacheTimestamp = (url: string): string => {
+  if (url.includes('_=')) {
+    return url.replace(/_=(\d+)?/g, `_=${Date.now()}`);
+  }
+
+  return url;
+};
+
+const getExistingGlobalAudioPlayer = (): HTMLAudioElement | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.__lpRadioGlobalPlayer ?? null;
+};
+
+const getOrCreateGlobalAudioPlayer = (): HTMLAudioElement | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  if (!window.__lpRadioGlobalPlayer) {
+    const player = document.createElement('audio');
+    player.preload = 'none';
+    player.style.display = 'none';
+    player.setAttribute('data-lp-radio-player', 'global');
+    document.body.appendChild(player);
+    window.__lpRadioGlobalPlayer = player;
+  }
+
+  return window.__lpRadioGlobalPlayer;
+};
+
 export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVariables }) => {
   const styles = useStyles2(getStyles);
-  const playerRef = useRef<HTMLAudioElement>(null);
+  const playerRef = useRef<HTMLAudioElement | null>(null);
 
   const safeOptions = useMemo(() => mergeOptions(options), [options]);
   const displayDiscSize = Math.max(120, Math.min(safeOptions.discSize, width - 24, height - 48));
@@ -212,8 +331,12 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   );
 
   const [now, setNow] = useState<Date>(() => new Date());
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(() => {
+    const existingPlayer = getExistingGlobalAudioPlayer();
+    return existingPlayer ? !existingPlayer.paused : false;
+  });
   const [playbackError, setPlaybackError] = useState(false);
+  const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrack | null>(null);
 
   const currentStation = useMemo(() => getActiveStation(now), [getActiveStation, now]);
 
@@ -223,9 +346,38 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   );
   const goldMatch = replaceVariables(safeOptions.goldMatchText);
   const isGoldMode = goldMatch.length > 0 && resolvedStation.name.toLowerCase().includes(goldMatch.toLowerCase());
+  const nowPlayingApiUrl = useMemo(
+    () => getNowPlayingApiUrl(resolvedStation.nowPlayingPreset, resolvedStation.nowPlayingApiUrl, replaceVariables),
+    [resolvedStation.nowPlayingPreset, resolvedStation.nowPlayingApiUrl, replaceVariables]
+  );
+  const shouldShowNowPlaying = resolvedStation.nowPlayingPreset !== 'none' && nowPlayingApiUrl.length > 0;
   const panelBorderWidth = Math.max(0, safeOptions.panelBorderWidth);
   const discBorderWidth = Math.max(0, safeOptions.discBorderWidth);
   const labelBorderWidth = Math.max(0, safeOptions.labelBorderWidth);
+
+  useEffect(() => {
+    const player = getOrCreateGlobalAudioPlayer();
+    if (!player) {
+      return;
+    }
+
+    playerRef.current = player;
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+
+    player.addEventListener('play', onPlay);
+    player.addEventListener('pause', onPause);
+
+    return () => {
+      player.removeEventListener('play', onPlay);
+      player.removeEventListener('pause', onPause);
+
+      if (!safeOptions.continuePlaybackAcrossDashboards) {
+        player.pause();
+      }
+    };
+  }, [safeOptions.continuePlaybackAcrossDashboards]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -233,7 +385,20 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       return;
     }
 
+    const currentStreamUrl = player.getAttribute('data-stream-url') ?? '';
+    const isSameStream = currentStreamUrl === resolvedStation.url;
+    const shouldKeepCurrentPlayback =
+      safeOptions.continuePlaybackAcrossDashboards &&
+      isSameStream &&
+      isPlaying &&
+      !player.paused;
+
+    if (shouldKeepCurrentPlayback) {
+      return;
+    }
+
     player.src = resolvedStation.url;
+    player.setAttribute('data-stream-url', resolvedStation.url);
     player.load();
 
     if (isPlaying) {
@@ -242,7 +407,44 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
         setPlaybackError(true);
       });
     }
-  }, [resolvedStation, isPlaying]);
+  }, [resolvedStation, isPlaying, safeOptions.continuePlaybackAcrossDashboards]);
+
+  useEffect(() => {
+    if (!shouldShowNowPlaying) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchNowPlaying = async () => {
+      try {
+        const response = await fetch(withNoCacheTimestamp(nowPlayingApiUrl), {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        const parsedTrack = parseNowPlayingTrack(resolvedStation.nowPlayingPreset, payload);
+        setNowPlayingTrack(parsedTrack);
+      } catch {
+      }
+    };
+
+    fetchNowPlaying();
+
+    const refreshMs = Math.max(5000, safeOptions.checkIntervalSeconds * 1000);
+    const interval = window.setInterval(fetchNowPlaying, refreshMs);
+
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [nowPlayingApiUrl, safeOptions.checkIntervalSeconds, resolvedStation.nowPlayingPreset, shouldShowNowPlaying]);
 
   useEffect(() => {
     const intervalMs = Math.max(5000, safeOptions.checkIntervalSeconds * 1000);
@@ -283,6 +485,16 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       ? `${replaceVariables(safeOptions.onAirPrefix)} ${resolvedStation.name}`
       : resolvedStation.name || replaceVariables(safeOptions.loadingText);
 
+  const activeNowPlayingTrack = shouldShowNowPlaying ? nowPlayingTrack : null;
+
+  const nowPlayingText = activeNowPlayingTrack
+    ? `${activeNowPlayingTrack.artist}${activeNowPlayingTrack.artist && activeNowPlayingTrack.song ? ' - ' : ''}${activeNowPlayingTrack.song}`
+    : statusText;
+  const labelImageSrc = activeNowPlayingTrack?.coverUrl || resolvedStation.logo;
+  const labelAltText = activeNowPlayingTrack
+    ? `${activeNowPlayingTrack.artist} - ${activeNowPlayingTrack.song}`
+    : resolvedStation.name;
+
   return (
     <div
       className={styles.panel}
@@ -292,7 +504,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       }}
     >
       <div className={cx(styles.trackInfo, isGoldMode && styles.goldText)} data-testid="track-info">
-        {statusText}
+        {nowPlayingText}
       </div>
 
       <div
@@ -323,13 +535,12 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
             className={styles.lpLabel}
             style={{ border: `${labelBorderWidth}px solid ${safeOptions.labelBorderColor}` }}
           >
-            <img className={styles.labelImage} src={resolvedStation.logo} alt={resolvedStation.name} />
+            <img className={styles.labelImage} src={labelImageSrc} alt={labelAltText} />
           </div>
           <div className={styles.centerHole} />
         </div>
       </div>
 
-      <audio ref={playerRef} preload="none" />
     </div>
   );
 };

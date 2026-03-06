@@ -17,7 +17,7 @@ test('should render station info and disc when visualization is selected', async
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Lp-Radio-Panel');
+  await panelEditPage.setVisualization('Radio-Panel');
   await expect(page.getByTestId('lp-disc')).toBeVisible();
   await expect(page.getByTestId('track-info')).toBeVisible();
 });

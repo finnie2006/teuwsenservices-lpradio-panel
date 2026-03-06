@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: 'lp-radio-panel'
+  - name: 'radio-panel'
     type: file
     options:
       path: /etc/grafana/provisioning/dashboards

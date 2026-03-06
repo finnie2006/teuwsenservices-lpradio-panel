@@ -2,6 +2,8 @@ export interface StationOption {
   name: string;
   url: string;
   logo: string;
+  nowPlayingPreset: string;
+  nowPlayingApiUrl: string;
 }
 
 export interface StationsByDay {
@@ -36,6 +38,7 @@ export interface SimpleOptions {
   clickToStartText: string;
   onAirPrefix: string;
   checkIntervalSeconds: number;
+  continuePlaybackAcrossDashboards: boolean;
   discSize: number;
   goldMatchText: string;
   sameStationAllDays: boolean;
@@ -50,13 +53,20 @@ export interface SimpleOptions {
   thursdayOverride: ThursdayOverrideOption;
 }
 
-export const defaultStation = (name: string, url: string, logo: string): StationOption => ({ name, url, logo });
+export const defaultStation = (
+  name: string,
+  url: string,
+  logo: string,
+  nowPlayingPreset = 'none',
+  nowPlayingApiUrl = ''
+): StationOption => ({ name, url, logo, nowPlayingPreset, nowPlayingApiUrl });
 
 export const defaultOptions: SimpleOptions = {
   loadingText: 'Laden...',
   clickToStartText: 'Klik om te starten',
   onAirPrefix: 'ON AIR:',
   checkIntervalSeconds: 60,
+  continuePlaybackAcrossDashboards: true,
   discSize: 250,
   goldMatchText: 'Sterren NL!',
   sameStationAllDays: false,
@@ -80,17 +90,20 @@ export const defaultOptions: SimpleOptions = {
     monday: defaultStation(
       'Arrow Classic Rock',
       'https://stream.player.arrow.nl/arrowcr',
-      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png'
+      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png',
+      'arrow-classic-rock'
     ),
     tuesday: defaultStation(
       'Arrow Classic Rock',
       'https://stream.player.arrow.nl/arrowcr',
-      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png'
+      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png',
+      'arrow-classic-rock'
     ),
     wednesday: defaultStation(
       'Arrow Classic Rock',
       'https://stream.player.arrow.nl/arrowcr',
-      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png'
+      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png',
+      'arrow-classic-rock'
     ),
     thursday: defaultStation(
       'JOE Nonstop!',
@@ -100,7 +113,8 @@ export const defaultOptions: SimpleOptions = {
     friday: defaultStation(
       'Sterren NL!',
       'https://icecast.omroep.nl/radio2-sterrennl-mp3',
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/NPO_Sterren_NL_Logo_2014.svg/1280px-NPO_Sterren_NL_Logo_2014.svg.png'
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/NPO_Sterren_NL_Logo_2014.svg/1280px-NPO_Sterren_NL_Logo_2014.svg.png',
+      'npo-sterren-nl'
     ),
     saturday: defaultStation(
       'Sky Radio',
@@ -123,7 +137,8 @@ export const defaultOptions: SimpleOptions = {
     station: defaultStation(
       'Sterren NL!',
       'https://icecast.omroep.nl/radio2-sterrennl-mp3',
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/NPO_Sterren_NL_Logo_2014.svg/1280px-NPO_Sterren_NL_Logo_2014.svg.png'
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/NPO_Sterren_NL_Logo_2014.svg/1280px-NPO_Sterren_NL_Logo_2014.svg.png',
+      'npo-sterren-nl'
     ),
   },
 };

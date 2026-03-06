@@ -11,16 +11,43 @@ Interactieve LP-radio panel plugin voor Grafana.
 - Kiest automatisch een zender per weekdag.
 - Ondersteunt een timed override vanaf een instelbaar uur op zelfgekozen dag(en).
 - Ondersteunt één gedeeld station voor alle dagen.
+- Kan de huidige track van NPO Sterren NL tonen (artiest, titel en albumhoes).
+- Kan audio laten doorlopen tussen dashboardwissels in Grafana playlists.
 - Laat gouden styling zien als de zendernaam matcht met een instelbare tekst.
 - Ondersteunt styling-opties voor randen (panel, disc, label).
 - Ondersteunt Grafana variabelen in zendernaam, stream-URL en logo-URL (bijv. `${station_url}`).
 
 ## Instelbare opties (Panel options)
 
-- **Display**: loading tekst, klik-tekst, ON AIR prefix, disc-grootte, schedule check interval, gold match tekst.
+- **Display**: loading tekst, klik-tekst, ON AIR prefix, disc-grootte, schedule check interval, gold match tekst, playlist doorloop-optie.
+- **Now playing (per station)**: per zender een preset-keuze (NPO Sterren NL, Arrow Classic Rock) en optionele API URL override.
 - **Styling**: randkleur/randdikte voor panel, disc en label.
 - **Schedule override**: aan/uit, startuur, dagselectie en override zendergegevens.
 - **Stations**: gedeeld station voor alle dagen óf losse zenders per dag.
+
+## NPO Sterren NL now playing mapping
+
+Bij preset **NPO Sterren NL** wordt de API uitgelezen:
+
+- `artist` → artiest
+- `song` → titel
+- `radioTracks.coverUrl` → albumhoes
+
+Standaard endpoint:
+
+- `https://www.nporadio5.nl/sterrennl/api/miniplayer/info?channel=npo-sterren-nl`
+
+## Arrow Classic Rock now playing mapping
+
+Bij preset **Arrow Classic Rock** wordt de API uitgelezen:
+
+- `artist` → artiest
+- `title` → titel
+- `image` → albumhoes (automatisch omgezet naar `https://player.arrow.nl/...`)
+
+Standaard endpoint:
+
+- `https://player.arrow.nl/index.php?c=Arrow%20Classic%20Rock&_=`
 
 ## Voorbeeld variabelen
 
