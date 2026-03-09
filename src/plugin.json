@@ -4,17 +4,44 @@
   "name": "Radio Panel",
   "id": "teuwsenservices-radio-panel",
   "info": {
-    "keywords": ["panel"],
-    "description": "",
+    "keywords": ["panel", "radio", "audio", "streaming", "now playing", "vinyl"],
+    "description": "Interactive vinyl-style radio panel for Grafana with day-based station scheduling and optional timed override. Supports per-station now playing metadata and playlist-friendly continuous playback.",
     "author": {
-      "name": "Teuwsen services"
+      "name": "Teuwsen services",
+      "url": "https://github.com/finnie2006"
     },
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [],
-    "screenshots": [],
+    "links": [
+      {
+        "name": "documentation",
+        "url": "https://github.com/finnie2006/teuwsenservices-lpradio-panel"
+      },
+      {
+        "name": "repository",
+        "url": "https://github.com/finnie2006/teuwsenservices-lpradio-panel"
+      },
+      {
+        "name": "license",
+        "url": "https://github.com/finnie2006/teuwsenservices-lpradio-panel/blob/main/LICENSE"
+      },
+      {
+        "name": "raise issue",
+        "url": "https://github.com/finnie2006/teuwsenservices-lpradio-panel/issues"
+      }
+    ],
+    "screenshots": [
+      {
+        "name": "Radio panel compact view",
+        "path": "img/screenshot-1.png"
+      },
+      {
+        "name": "Radio panel full dashboard view",
+        "path": "img/screenshot-2.png"
+      }
+    ],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },
