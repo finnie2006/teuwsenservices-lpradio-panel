@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (2026-03-09)
+
+### Fixed
+
+- Updated build dependency `copy-webpack-plugin` to `14.0.0`.
+- Removed high-severity `serialize-javascript` vulnerability from lockfile dependency tree.
+
 ## 1.0.0 (2026-03-09)
 
 ### Added
