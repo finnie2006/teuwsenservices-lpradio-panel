@@ -141,7 +141,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.sharedStation.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -153,7 +153,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'sharedStation.nowPlayingApiUrl',
       name: 'Shared now playing API URL',
       defaultValue: defaultOptions.sharedStation.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Shared station'],
       showIf: (config) => config.sameStationAllDays && config.sharedStation?.nowPlayingPreset !== 'none',
     })
@@ -251,7 +251,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.thursdayOverride.station.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -263,7 +263,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'thursdayOverride.station.nowPlayingApiUrl',
       name: 'Override now playing API URL',
       defaultValue: defaultOptions.thursdayOverride.station.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Schedule override'],
       showIf: (config) => config.thursdayOverride?.enabled && config.thursdayOverride?.station?.nowPlayingPreset !== 'none',
     })
@@ -294,7 +294,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.sunday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -306,7 +306,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.sunday.nowPlayingApiUrl',
       name: 'Sunday now playing API URL',
       defaultValue: defaultOptions.stations.sunday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Sunday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.sunday?.nowPlayingPreset !== 'none',
     })
@@ -337,7 +337,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.monday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -349,7 +349,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.monday.nowPlayingApiUrl',
       name: 'Monday now playing API URL',
       defaultValue: defaultOptions.stations.monday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Monday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.monday?.nowPlayingPreset !== 'none',
     })
@@ -380,7 +380,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.tuesday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -392,7 +392,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.tuesday.nowPlayingApiUrl',
       name: 'Tuesday now playing API URL',
       defaultValue: defaultOptions.stations.tuesday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Tuesday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.tuesday?.nowPlayingPreset !== 'none',
     })
@@ -423,7 +423,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.wednesday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -435,7 +435,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.wednesday.nowPlayingApiUrl',
       name: 'Wednesday now playing API URL',
       defaultValue: defaultOptions.stations.wednesday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Wednesday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.wednesday?.nowPlayingPreset !== 'none',
     })
@@ -466,7 +466,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.thursday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -478,7 +478,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.thursday.nowPlayingApiUrl',
       name: 'Thursday now playing API URL',
       defaultValue: defaultOptions.stations.thursday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Thursday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.thursday?.nowPlayingPreset !== 'none',
     })
@@ -509,7 +509,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.friday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -521,7 +521,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.friday.nowPlayingApiUrl',
       name: 'Friday now playing API URL',
       defaultValue: defaultOptions.stations.friday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Friday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.friday?.nowPlayingPreset !== 'none',
     })
@@ -552,7 +552,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.stations.saturday.nowPlayingPreset,
       settings: {
         options: [
-          { value: 'none', label: 'Geen' },
+          { value: 'none', label: 'None' },
           { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
           { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
         ],
@@ -564,7 +564,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'stations.saturday.nowPlayingApiUrl',
       name: 'Saturday now playing API URL',
       defaultValue: defaultOptions.stations.saturday.nowPlayingApiUrl,
-      description: 'Laat leeg om de URL uit de geselecteerde preset te gebruiken.',
+      description: 'Leave empty to use the selected preset URL.',
       category: ['Stations', 'Saturday'],
       showIf: (config) => !config.sameStationAllDays && config.stations?.saturday?.nowPlayingPreset !== 'none',
     });

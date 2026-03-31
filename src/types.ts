@@ -62,8 +62,8 @@ export const defaultStation = (
 ): StationOption => ({ name, url, logo, nowPlayingPreset, nowPlayingApiUrl });
 
 export const defaultOptions: SimpleOptions = {
-  loadingText: 'Laden...',
-  clickToStartText: 'Klik om te starten',
+  loadingText: 'Loading...',
+  clickToStartText: 'Click to start',
   onAirPrefix: 'ON AIR:',
   checkIntervalSeconds: 60,
   continuePlaybackAcrossDashboards: true,

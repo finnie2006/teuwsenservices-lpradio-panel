@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanelProps } from '@grafana/data';
+import { GrafanaTheme2, PanelProps } from '@grafana/data';
 import { defaultOptions, SimpleOptions, StationOption, StationsByDay } from 'types';
 import { css, cx, keyframes } from '@emotion/css';
 import { useStyles2 } from '@grafana/ui';
@@ -19,6 +19,7 @@ interface NowPlayingPresetConfig {
 declare global {
   interface Window {
     __lpRadioGlobalPlayer?: HTMLAudioElement;
+    __lpRadioGlobalPlayerInstanceCount?: number;
   }
 }
 
@@ -31,11 +32,17 @@ const nowPlayingPresets: Record<string, NowPlayingPresetConfig> = {
   },
 };
 
-const getStyles = () => {
+const getStyles = (theme: GrafanaTheme2) => {
   const spin = keyframes`
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   `;
+
+  const trackTextColor = theme.colors.primary.main;
+  const goldColor = theme.colors.warning.main;
+  const discBaseColor = theme.colors.background.secondary;
+  const discHighlightColor = theme.colors.background.primary;
+  const discShadowColor = theme.colors.text.disabled;
 
   return {
     panel: css`
@@ -45,14 +52,14 @@ const getStyles = () => {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 10px;
+      padding: ${theme.spacing(1.25)};
       box-sizing: border-box;
-      font-family: Inter, sans-serif;
+      font-family: ${theme.typography.fontFamily};
     `,
     trackInfo: css`
-      color: #46a2ff;
+      color: ${trackTextColor};
       font-size: 0.85em;
-      margin-bottom: 8px;
+      margin-bottom: ${theme.spacing(1)};
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -61,8 +68,8 @@ const getStyles = () => {
       transition: color 0.5s ease;
     `,
     goldText: css`
-      color: #ffd700 !important;
-      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+      color: ${goldColor} !important;
+      text-shadow: 0 0 ${theme.spacing(0.625)} ${goldColor}80;
     `,
     lpWrapper: css`
       position: relative;
@@ -74,12 +81,12 @@ const getStyles = () => {
     lpDisc: css`
       width: 100%;
       height: 100%;
-      background: radial-gradient(circle, #222 0%, #000 70%);
+      background: radial-gradient(circle, ${discHighlightColor} 0%, ${discBaseColor} 70%);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 ${theme.spacing(1.25)} ${theme.spacing(3.75)} ${discShadowColor}66;
       background-image:
         repeating-radial-gradient(
           rgba(0, 0, 0, 0) 0px,
@@ -96,21 +103,24 @@ const getStyles = () => {
       animation-play-state: running;
     `,
     sterrenGlow: css`
-      box-shadow: 0 0 30px rgba(255, 215, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 0 ${theme.spacing(3.75)} ${goldColor}66, 0 ${theme.spacing(1.25)} ${theme.spacing(3.75)} ${discShadowColor}66;
     `,
     playingBlueGlow: css`
-      box-shadow: 0 0 25px rgba(70, 162, 255, 0.3), 0 10px 30px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 0 ${theme.spacing(3.125)} ${trackTextColor}59, 0 ${theme.spacing(1.25)} ${theme.spacing(3.75)} ${discShadowColor}66;
+    `,
+    goldDiscBorder: css`
+      border-color: ${goldColor} !important;
     `,
     lpLabel: css`
       width: 40%;
       height: 40%;
-      background: #ffffff;
+      background: ${theme.colors.background.primary};
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+      box-shadow: inset 0 0 ${theme.spacing(1.25)} ${discShadowColor}66;
       z-index: 2;
     `,
     labelImage: css`
@@ -122,10 +132,10 @@ const getStyles = () => {
       position: absolute;
       width: 12px;
       height: 12px;
-      background: #181b1f;
+      background: ${theme.colors.background.canvas};
       border-radius: 50%;
       z-index: 3;
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+      box-shadow: inset 0 2px 4px ${discShadowColor}66;
     `,
   };
 };
@@ -285,6 +295,26 @@ const getExistingGlobalAudioPlayer = (): HTMLAudioElement | null => {
   return window.__lpRadioGlobalPlayer ?? null;
 };
 
+const incrementGlobalAudioPlayerRefCount = (): number => {
+  if (typeof window === 'undefined') {
+    return 0;
+  }
+
+  const nextCount = (window.__lpRadioGlobalPlayerInstanceCount ?? 0) + 1;
+  window.__lpRadioGlobalPlayerInstanceCount = nextCount;
+  return nextCount;
+};
+
+const decrementGlobalAudioPlayerRefCount = (): number => {
+  if (typeof window === 'undefined') {
+    return 0;
+  }
+
+  const nextCount = Math.max(0, (window.__lpRadioGlobalPlayerInstanceCount ?? 0) - 1);
+  window.__lpRadioGlobalPlayerInstanceCount = nextCount;
+  return nextCount;
+};
+
 const getOrCreateGlobalAudioPlayer = (): HTMLAudioElement | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -337,6 +367,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   });
   const [playbackError, setPlaybackError] = useState(false);
   const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrack | null>(null);
+  const [blockedNowPlayingKeys, setBlockedNowPlayingKeys] = useState<Set<string>>(() => new Set());
 
   const currentStation = useMemo(() => getActiveStation(now), [getActiveStation, now]);
 
@@ -351,6 +382,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     [resolvedStation.nowPlayingPreset, resolvedStation.nowPlayingApiUrl, replaceVariables]
   );
   const shouldShowNowPlaying = resolvedStation.nowPlayingPreset !== 'none' && nowPlayingApiUrl.length > 0;
+  const nowPlayingRequestKey = `${resolvedStation.nowPlayingPreset}:${nowPlayingApiUrl}`;
+  const isNowPlayingPollingDisabled = blockedNowPlayingKeys.has(nowPlayingRequestKey);
   const panelBorderWidth = Math.max(0, safeOptions.panelBorderWidth);
   const discBorderWidth = Math.max(0, safeOptions.discBorderWidth);
   const labelBorderWidth = Math.max(0, safeOptions.labelBorderWidth);
@@ -360,6 +393,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     if (!player) {
       return;
     }
+
+    incrementGlobalAudioPlayerRefCount();
 
     playerRef.current = player;
 
@@ -373,8 +408,19 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       player.removeEventListener('play', onPlay);
       player.removeEventListener('pause', onPause);
 
-      if (!safeOptions.continuePlaybackAcrossDashboards) {
+      const remainingInstances = decrementGlobalAudioPlayerRefCount();
+      const shouldPausePlayer = !safeOptions.continuePlaybackAcrossDashboards || remainingInstances === 0;
+
+      if (shouldPausePlayer) {
         player.pause();
+      }
+
+      if (remainingInstances === 0) {
+        player.removeAttribute('src');
+        player.load();
+        player.remove();
+        delete window.__lpRadioGlobalPlayer;
+        delete window.__lpRadioGlobalPlayerInstanceCount;
       }
     };
   }, [safeOptions.continuePlaybackAcrossDashboards]);
@@ -410,7 +456,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   }, [resolvedStation, isPlaying, safeOptions.continuePlaybackAcrossDashboards]);
 
   useEffect(() => {
-    if (!shouldShowNowPlaying) {
+    if (!shouldShowNowPlaying || isNowPlayingPollingDisabled) {
       return;
     }
 
@@ -432,6 +478,18 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
         const parsedTrack = parseNowPlayingTrack(resolvedStation.nowPlayingPreset, payload);
         setNowPlayingTrack(parsedTrack);
       } catch {
+        if (!controller.signal.aborted) {
+          setBlockedNowPlayingKeys((previousKeys) => {
+            if (previousKeys.has(nowPlayingRequestKey)) {
+              return previousKeys;
+            }
+
+            const nextKeys = new Set(previousKeys);
+            nextKeys.add(nowPlayingRequestKey);
+            return nextKeys;
+          });
+          setNowPlayingTrack(null);
+        }
       }
     };
 
@@ -444,7 +502,14 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [nowPlayingApiUrl, safeOptions.checkIntervalSeconds, resolvedStation.nowPlayingPreset, shouldShowNowPlaying]);
+  }, [
+    isNowPlayingPollingDisabled,
+    nowPlayingApiUrl,
+    nowPlayingRequestKey,
+    safeOptions.checkIntervalSeconds,
+    resolvedStation.nowPlayingPreset,
+    shouldShowNowPlaying,
+  ]);
 
   useEffect(() => {
     const intervalMs = Math.max(5000, safeOptions.checkIntervalSeconds * 1000);
@@ -526,9 +591,10 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
             styles.lpDisc,
             isPlaying && styles.playing,
             isGoldMode && styles.sterrenGlow,
+            isGoldMode && styles.goldDiscBorder,
             isPlaying && !isGoldMode && styles.playingBlueGlow
           )}
-          style={{ border: `${discBorderWidth}px solid ${isGoldMode ? '#ffd700' : safeOptions.discBorderColor}` }}
+          style={{ border: `${discBorderWidth}px solid ${safeOptions.discBorderColor}` }}
           data-testid="lp-disc"
         >
           <div

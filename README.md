@@ -17,6 +17,14 @@ Interactive vinyl-style radio panel for Grafana. The panel supports weekday-base
 - Styling controls for panel, disk, and label borders.
 - Grafana variable support in station name, stream URL, and logo URL.
 
+## Now Playing and CORS
+
+This panel runs in the browser as a Grafana panel plugin and cannot use Grafana's server-side data source proxy for arbitrary HTTP requests.
+Some external now-playing APIs block browser-origin requests due to CORS policy.
+
+When a now-playing request is blocked by CORS (or another network-level browser restriction), the panel stops polling that endpoint for the active station and falls back to normal station/status text.
+To keep now-playing metadata enabled, use endpoints that allow browser CORS or place a CORS-enabled proxy in front of the metadata API.
+
 ## Requirements
 
 - Grafana `>=12.3.0`
