@@ -479,8 +479,15 @@ const getOrCreateGlobalAudioPlayer = (): HTMLAudioElement | null => {
 
 export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVariables }) => {
   const NOW_PLAYING_ERROR_COOLDOWN_MS = 60_000;
+  const STREAM_STALL_THRESHOLD_MS = 10_000;
+  const STREAM_RESTART_COOLDOWN_MS = 15_000;
   const styles = useStyles2(getStyles);
   const playerRef = useRef<HTMLAudioElement | null>(null);
+  const streamProgressRef = useRef({
+    lastTime: 0,
+    lastProgressAt: 0,
+    lastRestartAt: 0,
+  });
 
   const safeOptions = useMemo(() => mergeOptions(options), [options]);
   const displayDiscSize = Math.max(120, Math.min(safeOptions.discSize, width - 24, height - 48));
@@ -551,16 +558,32 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     incrementGlobalAudioPlayerRefCount();
 
     playerRef.current = player;
+    streamProgressRef.current.lastProgressAt = Date.now();
+    streamProgressRef.current.lastTime = player.currentTime;
 
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
+    const onProgress = () => {
+      streamProgressRef.current.lastTime = player.currentTime;
+      streamProgressRef.current.lastProgressAt = Date.now();
+    };
 
     player.addEventListener('play', onPlay);
     player.addEventListener('pause', onPause);
+    player.addEventListener('playing', onProgress);
+    player.addEventListener('timeupdate', onProgress);
+    player.addEventListener('progress', onProgress);
+    player.addEventListener('loadeddata', onProgress);
+    player.addEventListener('canplay', onProgress);
 
     return () => {
       player.removeEventListener('play', onPlay);
       player.removeEventListener('pause', onPause);
+      player.removeEventListener('playing', onProgress);
+      player.removeEventListener('timeupdate', onProgress);
+      player.removeEventListener('progress', onProgress);
+      player.removeEventListener('loadeddata', onProgress);
+      player.removeEventListener('canplay', onProgress);
 
       const remainingInstances = decrementGlobalAudioPlayerRefCount();
       const shouldPausePlayer = !safeOptions.continuePlaybackAcrossDashboards || remainingInstances === 0;
@@ -600,6 +623,9 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     player.src = resolvedStation.url;
     player.setAttribute('data-stream-url', resolvedStation.url);
     player.load();
+    streamProgressRef.current.lastTime = 0;
+    streamProgressRef.current.lastProgressAt = Date.now();
+    streamProgressRef.current.lastRestartAt = 0;
 
     if (isPlaying) {
       player.play().catch(() => {
@@ -608,6 +634,71 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       });
     }
   }, [resolvedStation, isPlaying, safeOptions.continuePlaybackAcrossDashboards]);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) {
+      return;
+    }
+
+    const watchdogIntervalMs = Math.max(10_000, safeOptions.checkIntervalSeconds * 1000);
+
+    const restartStreamIfStalled = async () => {
+      if (!isPlaying || player.paused) {
+        return;
+      }
+
+      const nowTs = Date.now();
+      const progress = streamProgressRef.current;
+      const hasAdvanced = player.currentTime > progress.lastTime + 0.1;
+
+      if (hasAdvanced) {
+        progress.lastTime = player.currentTime;
+        progress.lastProgressAt = nowTs;
+        return;
+      }
+
+      const stalledTooLong = nowTs - progress.lastProgressAt >= STREAM_STALL_THRESHOLD_MS;
+      const restartOnCooldown = nowTs - progress.lastRestartAt < STREAM_RESTART_COOLDOWN_MS;
+
+      if (!stalledTooLong || restartOnCooldown) {
+        return;
+      }
+
+      const activeStreamUrl = player.getAttribute('data-stream-url') ?? resolvedStation.url;
+      if (!activeStreamUrl) {
+        return;
+      }
+
+      progress.lastRestartAt = nowTs;
+
+      try {
+        player.pause();
+        player.src = withNoCacheTimestamp(activeStreamUrl);
+        player.setAttribute('data-stream-url', activeStreamUrl);
+        player.load();
+        await player.play();
+        setPlaybackError(false);
+        progress.lastProgressAt = Date.now();
+      } catch {
+        setPlaybackError(true);
+      }
+    };
+
+    const watchdog = window.setInterval(() => {
+      void restartStreamIfStalled();
+    }, watchdogIntervalMs);
+
+    return () => {
+      window.clearInterval(watchdog);
+    };
+  }, [
+    isPlaying,
+    resolvedStation.url,
+    safeOptions.checkIntervalSeconds,
+    STREAM_STALL_THRESHOLD_MS,
+    STREAM_RESTART_COOLDOWN_MS,
+  ]);
 
   useEffect(() => {
     if (!shouldShowNowPlaying || isNowPlayingPollingDisabled) {
