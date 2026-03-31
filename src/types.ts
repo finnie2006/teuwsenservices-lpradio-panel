@@ -4,6 +4,7 @@ export interface StationOption {
   logo: string;
   nowPlayingPreset: string;
   nowPlayingApiUrl: string;
+  nowPlayingCorsProxyUrl: string;
 }
 
 export interface StationsByDay {
@@ -37,6 +38,7 @@ export interface SimpleOptions {
   loadingText: string;
   clickToStartText: string;
   onAirPrefix: string;
+  nowPlayingCorsProxyUrl: string;
   checkIntervalSeconds: number;
   continuePlaybackAcrossDashboards: boolean;
   discSize: number;
@@ -58,13 +60,15 @@ export const defaultStation = (
   url: string,
   logo: string,
   nowPlayingPreset = 'none',
-  nowPlayingApiUrl = ''
-): StationOption => ({ name, url, logo, nowPlayingPreset, nowPlayingApiUrl });
+  nowPlayingApiUrl = '',
+  nowPlayingCorsProxyUrl = ''
+): StationOption => ({ name, url, logo, nowPlayingPreset, nowPlayingApiUrl, nowPlayingCorsProxyUrl });
 
 export const defaultOptions: SimpleOptions = {
   loadingText: 'Loading...',
   clickToStartText: 'Click to start',
   onAirPrefix: 'ON AIR:',
+  nowPlayingCorsProxyUrl: '',
   checkIntervalSeconds: 60,
   continuePlaybackAcrossDashboards: true,
   discSize: 250,

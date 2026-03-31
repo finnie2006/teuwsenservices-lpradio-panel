@@ -14,6 +14,8 @@ interface NowPlayingTrack {
 
 interface NowPlayingPresetConfig {
   apiUrl: string;
+  parser: 'sterren' | 'arrow' | 'generic';
+  defaultCorsProxyUrl?: string;
 }
 
 declare global {
@@ -26,9 +28,16 @@ declare global {
 const nowPlayingPresets: Record<string, NowPlayingPresetConfig> = {
   'npo-sterren-nl': {
     apiUrl: 'https://www.nporadio5.nl/sterrennl/api/miniplayer/info?channel=npo-sterren-nl',
+    parser: 'sterren',
   },
   'arrow-classic-rock': {
-    apiUrl: 'https://player.arrow.nl/index.php?c=Arrow%20Classic%20Rock&_=',
+    apiUrl: 'http://player.arrow.nl/index.php?c=Arrow%20Classic%20Rock&_=',
+    parser: 'arrow',
+    defaultCorsProxyUrl: 'https://r.jina.ai/',
+  },
+  'custom-json': {
+    apiUrl: '',
+    parser: 'generic',
   },
 };
 
@@ -147,6 +156,7 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
     logo: station?.logo || fallback.logo,
     nowPlayingPreset: station?.nowPlayingPreset || fallback.nowPlayingPreset,
     nowPlayingApiUrl: station?.nowPlayingApiUrl || fallback.nowPlayingApiUrl,
+    nowPlayingCorsProxyUrl: station?.nowPlayingCorsProxyUrl || fallback.nowPlayingCorsProxyUrl,
   });
 
   return {
@@ -154,6 +164,7 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
     ...options,
     sameStationAllDays: options?.sameStationAllDays ?? defaultOptions.sameStationAllDays,
     sharedStation: mergeStation(options?.sharedStation, defaultOptions.sharedStation),
+    nowPlayingCorsProxyUrl: options?.nowPlayingCorsProxyUrl ?? defaultOptions.nowPlayingCorsProxyUrl,
     panelBorderColor: options?.panelBorderColor || defaultOptions.panelBorderColor,
     panelBorderWidth: options?.panelBorderWidth ?? defaultOptions.panelBorderWidth,
     discBorderColor: options?.discBorderColor || defaultOptions.discBorderColor,
@@ -192,6 +203,7 @@ const resolveStation = (station: StationOption, replaceVariables: Props['replace
   logo: replaceVariables(station.logo),
   nowPlayingPreset: replaceVariables(station.nowPlayingPreset),
   nowPlayingApiUrl: replaceVariables(station.nowPlayingApiUrl),
+  nowPlayingCorsProxyUrl: replaceVariables(station.nowPlayingCorsProxyUrl),
 });
 
 const stationByDay = (day: number, stations: StationsByDay): StationOption => {
@@ -236,7 +248,29 @@ const getNowPlayingApiUrl = (
     return resolvedCustomUrl;
   }
 
+  if (preset === 'custom-json') {
+    return '';
+  }
+
   return nowPlayingPresets[preset]?.apiUrl ?? '';
+};
+
+const applyCorsProxyUrl = (apiUrl: string, proxyTemplate: string): string => {
+  const trimmedApiUrl = apiUrl.trim();
+  if (trimmedApiUrl.length === 0) {
+    return '';
+  }
+
+  const trimmedProxyTemplate = proxyTemplate.trim();
+  if (trimmedProxyTemplate.length === 0) {
+    return trimmedApiUrl;
+  }
+
+  if (trimmedProxyTemplate.includes('{{url}}')) {
+    return trimmedProxyTemplate.replace(/{{\s*url\s*}}/g, encodeURIComponent(trimmedApiUrl));
+  }
+
+  return `${trimmedProxyTemplate}${trimmedApiUrl}`;
 };
 
 const parseSterrenNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
@@ -252,10 +286,48 @@ const parseSterrenNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   return { artist, song, coverUrl };
 };
 
+const tryParseWrappedJsonString = (value: unknown): any | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  return parseNowPlayingPayload(value);
+};
+
+const normalizeArrowPayload = (payload: any): any => {
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+
+  const directCandidate = payload.detail ?? payload.data?.detail;
+  if (directCandidate && typeof directCandidate === 'object') {
+    return directCandidate;
+  }
+
+  const wrappedJsonCandidate = tryParseWrappedJsonString(payload.data?.content) ?? tryParseWrappedJsonString(payload.content);
+  if (wrappedJsonCandidate && typeof wrappedJsonCandidate === 'object') {
+    return wrappedJsonCandidate;
+  }
+
+  return payload;
+};
+
 const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
-  const artist = payload?.artist?.toString().trim() ?? '';
-  const song = payload?.title?.toString().trim() ?? '';
-  const rawImage = payload?.image?.toString().trim() ?? '';
+  const normalizedPayload = normalizeArrowPayload(payload);
+
+  const artist =
+    normalizedPayload?.artist?.toString().trim() ??
+    normalizedPayload?.station?.toString().trim() ??
+    '';
+  const song =
+    normalizedPayload?.title?.toString().trim() ??
+    normalizedPayload?.song?.toString().trim() ??
+    normalizedPayload?.track?.toString().trim() ??
+    '';
+  const rawImage =
+    normalizedPayload?.image?.toString().trim() ??
+    normalizedPayload?.coverUrl?.toString().trim() ??
+    '';
   const normalizedImage = rawImage.replace(/^\/+/, '');
   const coverUrl =
     normalizedImage.length === 0
@@ -271,12 +343,85 @@ const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   return { artist, song, coverUrl };
 };
 
+const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
+  const normalizedPayload = normalizeArrowPayload(payload);
+
+  const artist =
+    normalizedPayload?.artist?.toString().trim() ??
+    normalizedPayload?.station?.toString().trim() ??
+    normalizedPayload?.name?.toString().trim() ??
+    '';
+  const song =
+    normalizedPayload?.title?.toString().trim() ??
+    normalizedPayload?.song?.toString().trim() ??
+    normalizedPayload?.track?.toString().trim() ??
+    normalizedPayload?.nowPlaying?.toString().trim() ??
+    '';
+  const coverUrl =
+    normalizedPayload?.image?.toString().trim() ??
+    normalizedPayload?.cover?.toString().trim() ??
+    normalizedPayload?.coverUrl?.toString().trim() ??
+    normalizedPayload?.artwork?.toString().trim() ??
+    '';
+
+  if (artist.length === 0 && song.length === 0) {
+    return null;
+  }
+
+  return { artist, song, coverUrl };
+};
+
 const parseNowPlayingTrack = (preset: string, payload: any): NowPlayingTrack | null => {
-  if (preset === 'arrow-classic-rock') {
+  const parser = nowPlayingPresets[preset]?.parser ?? 'generic';
+
+  if (parser === 'arrow') {
     return parseArrowNowPlayingTrack(payload);
   }
 
-  return parseSterrenNowPlayingTrack(payload);
+  if (parser === 'sterren') {
+    return parseSterrenNowPlayingTrack(payload);
+  }
+
+  return parseGenericNowPlayingTrack(payload);
+};
+
+const extractFirstJsonObject = (content: string): string => {
+  const start = content.indexOf('{');
+  const end = content.lastIndexOf('}');
+
+  if (start === -1 || end === -1 || end < start) {
+    return '';
+  }
+
+  return content.slice(start, end + 1);
+};
+
+const parseNowPlayingPayload = (rawPayload: string): any | null => {
+  const raw = rawPayload.trim();
+  if (raw.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Continue with text wrapper extraction.
+  }
+
+  const markdownMarker = 'Markdown Content:';
+  const markerIndex = raw.indexOf(markdownMarker);
+  const markdownSection = markerIndex >= 0 ? raw.slice(markerIndex + markdownMarker.length).trim() : raw;
+  const jsonCandidate = extractFirstJsonObject(markdownSection);
+
+  if (jsonCandidate.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(jsonCandidate);
+  } catch {
+    return null;
+  }
 };
 
 const withNoCacheTimestamp = (url: string): string => {
@@ -333,6 +478,7 @@ const getOrCreateGlobalAudioPlayer = (): HTMLAudioElement | null => {
 };
 
 export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVariables }) => {
+  const NOW_PLAYING_ERROR_COOLDOWN_MS = 60_000;
   const styles = useStyles2(getStyles);
   const playerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -367,7 +513,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   });
   const [playbackError, setPlaybackError] = useState(false);
   const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrack | null>(null);
-  const [blockedNowPlayingKeys, setBlockedNowPlayingKeys] = useState<Set<string>>(() => new Set());
+  const [blockedNowPlayingKeys, setBlockedNowPlayingKeys] = useState<Record<string, number>>({});
 
   const currentStation = useMemo(() => getActiveStation(now), [getActiveStation, now]);
 
@@ -381,9 +527,17 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     () => getNowPlayingApiUrl(resolvedStation.nowPlayingPreset, resolvedStation.nowPlayingApiUrl, replaceVariables),
     [resolvedStation.nowPlayingPreset, resolvedStation.nowPlayingApiUrl, replaceVariables]
   );
+  const globalNowPlayingCorsProxyUrl = replaceVariables(safeOptions.nowPlayingCorsProxyUrl).trim();
+  const legacyStationNowPlayingCorsProxyUrl = resolvedStation.nowPlayingCorsProxyUrl.trim();
+  const effectiveNowPlayingCorsProxyUrl =
+    globalNowPlayingCorsProxyUrl ||
+    legacyStationNowPlayingCorsProxyUrl ||
+    nowPlayingPresets[resolvedStation.nowPlayingPreset]?.defaultCorsProxyUrl ||
+    '';
   const shouldShowNowPlaying = resolvedStation.nowPlayingPreset !== 'none' && nowPlayingApiUrl.length > 0;
-  const nowPlayingRequestKey = `${resolvedStation.nowPlayingPreset}:${nowPlayingApiUrl}`;
-  const isNowPlayingPollingDisabled = blockedNowPlayingKeys.has(nowPlayingRequestKey);
+  const nowPlayingRequestKey = `${resolvedStation.nowPlayingPreset}:${nowPlayingApiUrl}:${effectiveNowPlayingCorsProxyUrl}`;
+  const nowPlayingBlockedUntil = blockedNowPlayingKeys[nowPlayingRequestKey] ?? 0;
+  const isNowPlayingPollingDisabled = nowPlayingBlockedUntil > now.getTime();
   const panelBorderWidth = Math.max(0, safeOptions.panelBorderWidth);
   const discBorderWidth = Math.max(0, safeOptions.discBorderWidth);
   const labelBorderWidth = Math.max(0, safeOptions.labelBorderWidth);
@@ -464,7 +618,14 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
 
     const fetchNowPlaying = async () => {
       try {
-        const response = await fetch(withNoCacheTimestamp(nowPlayingApiUrl), {
+        const sourceUrl = withNoCacheTimestamp(nowPlayingApiUrl);
+        const requestUrl = applyCorsProxyUrl(sourceUrl, effectiveNowPlayingCorsProxyUrl);
+
+        if (!requestUrl) {
+          return;
+        }
+
+        const response = await fetch(requestUrl, {
           method: 'GET',
           headers: { Accept: 'application/json' },
           signal: controller.signal,
@@ -474,18 +635,38 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
           return;
         }
 
-        const payload = await response.json();
+        const contentType = response.headers.get('content-type') ?? '';
+        const payload = contentType.includes('application/json')
+          ? await response.json()
+          : parseNowPlayingPayload(await response.text());
+
+        if (!payload) {
+          return;
+        }
+
         const parsedTrack = parseNowPlayingTrack(resolvedStation.nowPlayingPreset, payload);
         setNowPlayingTrack(parsedTrack);
+        setBlockedNowPlayingKeys((previousKeys) => {
+          if (!(nowPlayingRequestKey in previousKeys)) {
+            return previousKeys;
+          }
+
+          const nextKeys = { ...previousKeys };
+          delete nextKeys[nowPlayingRequestKey];
+          return nextKeys;
+        });
       } catch {
         if (!controller.signal.aborted) {
           setBlockedNowPlayingKeys((previousKeys) => {
-            if (previousKeys.has(nowPlayingRequestKey)) {
+            const blockedUntil = previousKeys[nowPlayingRequestKey] ?? 0;
+            if (blockedUntil > Date.now()) {
               return previousKeys;
             }
 
-            const nextKeys = new Set(previousKeys);
-            nextKeys.add(nowPlayingRequestKey);
+            const nextKeys = {
+              ...previousKeys,
+              [nowPlayingRequestKey]: Date.now() + NOW_PLAYING_ERROR_COOLDOWN_MS,
+            };
             return nextKeys;
           });
           setNowPlayingTrack(null);
@@ -505,10 +686,13 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   }, [
     isNowPlayingPollingDisabled,
     nowPlayingApiUrl,
+    nowPlayingBlockedUntil,
     nowPlayingRequestKey,
+    effectiveNowPlayingCorsProxyUrl,
     safeOptions.checkIntervalSeconds,
     resolvedStation.nowPlayingPreset,
     shouldShowNowPlaying,
+    NOW_PLAYING_ERROR_COOLDOWN_MS,
   ]);
 
   useEffect(() => {
