@@ -518,6 +518,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     const existingPlayer = getExistingGlobalAudioPlayer();
     return existingPlayer ? !existingPlayer.paused : false;
   });
+  const playbackIntentRef = useRef<boolean>(isPlaying);
   const [playbackError, setPlaybackError] = useState(false);
   const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrack | null>(null);
   const [blockedNowPlayingKeys, setBlockedNowPlayingKeys] = useState<Record<string, number>>({});
@@ -561,7 +562,10 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     streamProgressRef.current.lastProgressAt = Date.now();
     streamProgressRef.current.lastTime = player.currentTime;
 
-    const onPlay = () => setIsPlaying(true);
+    const onPlay = () => {
+      playbackIntentRef.current = true;
+      setIsPlaying(true);
+    };
     const onPause = () => setIsPlaying(false);
     const onProgress = () => {
       streamProgressRef.current.lastTime = player.currentTime;
@@ -627,7 +631,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     streamProgressRef.current.lastProgressAt = Date.now();
     streamProgressRef.current.lastRestartAt = 0;
 
-    if (isPlaying) {
+    if (playbackIntentRef.current) {
       player.play().catch(() => {
         setIsPlaying(false);
         setPlaybackError(true);
@@ -644,12 +648,46 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     const watchdogIntervalMs = Math.max(10_000, safeOptions.checkIntervalSeconds * 1000);
 
     const restartStreamIfStalled = async () => {
-      if (!isPlaying || player.paused) {
+      if (!playbackIntentRef.current) {
         return;
       }
 
       const nowTs = Date.now();
       const progress = streamProgressRef.current;
+
+      if (player.paused) {
+        const resumeOnCooldown = nowTs - progress.lastRestartAt < STREAM_RESTART_COOLDOWN_MS;
+        if (resumeOnCooldown) {
+          return;
+        }
+
+        const activeStreamUrl = player.getAttribute('data-stream-url') ?? resolvedStation.url;
+        if (!activeStreamUrl) {
+          return;
+        }
+
+        progress.lastRestartAt = nowTs;
+
+        try {
+          await player.play();
+          setPlaybackError(false);
+          return;
+        } catch {
+          try {
+            player.src = withNoCacheTimestamp(activeStreamUrl);
+            player.setAttribute('data-stream-url', activeStreamUrl);
+            player.load();
+            await player.play();
+            setPlaybackError(false);
+            progress.lastProgressAt = Date.now();
+            return;
+          } catch {
+            setPlaybackError(true);
+            return;
+          }
+        }
+      }
+
       const hasAdvanced = player.currentTime > progress.lastTime + 0.1;
 
       if (hasAdvanced) {
@@ -693,7 +731,6 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       window.clearInterval(watchdog);
     };
   }, [
-    isPlaying,
     resolvedStation.url,
     safeOptions.checkIntervalSeconds,
     STREAM_STALL_THRESHOLD_MS,
@@ -807,14 +844,17 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     if (player.paused) {
       try {
         await player.play();
+        playbackIntentRef.current = true;
         setIsPlaying(true);
         setPlaybackError(false);
       } catch {
+        playbackIntentRef.current = false;
         setPlaybackError(true);
       }
       return;
     }
 
+    playbackIntentRef.current = false;
     player.pause();
     setIsPlaying(false);
   };
