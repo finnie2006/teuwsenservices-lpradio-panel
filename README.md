@@ -11,11 +11,23 @@ Interactive vinyl-style radio panel for Grafana. The panel supports weekday-base
 
 - Clickable vinyl disk UI that plays a configured radio stream.
 - Day-by-day station setup or one shared station for all days.
+- Optional station presets with per-day preset selection.
 - Timed override for selected weekdays starting at a specific hour.
 - Now playing presets for NPO Sterren NL, Arrow Classic Rock, and custom JSON APIs.
 - Optional continuous playback mode for dashboard playlist transitions.
 - Styling controls for panel, disk, and label borders.
 - Grafana variable support in station name, stream URL, and logo URL.
+
+## Station presets
+
+You can optionally use presets as a faster way to configure day schedules.
+
+1. Enable `Use station presets for days` in panel options.
+2. Configure preset slots in the `Presets` category.
+3. Select a preset per day in the `Stations` category.
+4. Choose `No preset` for a day to use that day's custom station fields.
+
+This is additive and non-breaking: existing day-by-day station setup continues to work.
 
 ## Now Playing and CORS
 

@@ -12,6 +12,7 @@
 
 - Refactored panel option builder to helper-based station/day option generation to reduce duplication and regression risk.
 - Updated day preset selector to show dynamic preset display names based on configured station names.
+- New Screenshot 2.
 
 ## 1.1.3 (2026-04-02)
 
