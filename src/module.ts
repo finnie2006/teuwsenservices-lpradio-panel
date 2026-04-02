@@ -9,8 +9,115 @@ const nowPlayingPresetOptions = [
   { value: 'custom-json', label: 'Custom JSON API (artist/title/image)' },
 ];
 
+const nowPlayingApiDescription =
+  'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).';
+
+const weekDays = [
+  { key: 'sunday', label: 'Sunday' },
+  { key: 'monday', label: 'Monday' },
+  { key: 'tuesday', label: 'Tuesday' },
+  { key: 'wednesday', label: 'Wednesday' },
+  { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' },
+  { key: 'saturday', label: 'Saturday' },
+] as const;
+
+type WeekDayKey = (typeof weekDays)[number]['key'];
+
 export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOptions((builder) => {
-  return builder
+  const addStationEditorGroup = (
+    pathPrefix: string,
+    defaultStation: (typeof defaultOptions)['sharedStation'],
+    namePrefix: string,
+    category: string[],
+    showIf: (config: SimpleOptions) => boolean
+  ) => {
+    builder
+      .addTextInput({
+        path: `${pathPrefix}.name`,
+        name: `${namePrefix} name`,
+        defaultValue: defaultStation.name,
+        category,
+        showIf,
+      })
+      .addTextInput({
+        path: `${pathPrefix}.url`,
+        name: `${namePrefix} stream URL`,
+        defaultValue: defaultStation.url,
+        category,
+        showIf,
+      })
+      .addTextInput({
+        path: `${pathPrefix}.logo`,
+        name: `${namePrefix} logo URL`,
+        defaultValue: defaultStation.logo,
+        category,
+        showIf,
+      })
+      .addSelect({
+        path: `${pathPrefix}.nowPlayingPreset`,
+        name: `${namePrefix} now playing preset`,
+        defaultValue: defaultStation.nowPlayingPreset,
+        settings: {
+          options: nowPlayingPresetOptions,
+        },
+        category,
+        showIf,
+      })
+      .addTextInput({
+        path: `${pathPrefix}.nowPlayingApiUrl`,
+        name: `${namePrefix} now playing API URL`,
+        defaultValue: defaultStation.nowPlayingApiUrl,
+        description: nowPlayingApiDescription,
+        category,
+        showIf: (config) => showIf(config) && getStationPreset(config, pathPrefix) !== 'none',
+      });
+  };
+
+  const getStationPreset = (config: SimpleOptions, pathPrefix: string): string => {
+    const keyParts = pathPrefix.split('.');
+
+    if (keyParts.length === 2 && keyParts[0] === 'stations') {
+      const dayKey = keyParts[1] as WeekDayKey;
+      return config.stations?.[dayKey]?.nowPlayingPreset ?? 'none';
+    }
+
+    if (pathPrefix === 'sharedStation') {
+      return config.sharedStation?.nowPlayingPreset ?? 'none';
+    }
+
+    if (pathPrefix === 'thursdayOverride.station') {
+      return config.thursdayOverride?.station?.nowPlayingPreset ?? 'none';
+    }
+
+    return 'none';
+  };
+
+  const addOverrideDayToggles = () => {
+    weekDays.forEach((day) => {
+      builder.addBooleanSwitch({
+        path: `thursdayOverride.days.${day.key}`,
+        name: `Apply on ${day.label}`,
+        defaultValue: defaultOptions.thursdayOverride.days[day.key],
+        category: ['Schedule override', 'Days'],
+        showIf: (config) => config.thursdayOverride?.enabled,
+      });
+    });
+  };
+
+  const addDailyStationEditors = () => {
+    weekDays.forEach((day) => {
+      addStationEditorGroup(
+        `stations.${day.key}`,
+        defaultOptions.stations[day.key],
+        day.label,
+        ['Stations', day.label],
+        (config) => !config.sameStationAllDays
+      );
+    });
+  };
+
+  builder
     .addTextInput({
       path: 'loadingText',
       name: 'Loading text',
@@ -128,45 +235,6 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       defaultValue: defaultOptions.sameStationAllDays,
       category: ['Stations'],
     })
-    .addTextInput({
-      path: 'sharedStation.name',
-      name: 'Shared station name',
-      defaultValue: defaultOptions.sharedStation.name,
-      category: ['Stations', 'Shared station'],
-      showIf: (config) => config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'sharedStation.url',
-      name: 'Shared station stream URL',
-      defaultValue: defaultOptions.sharedStation.url,
-      category: ['Stations', 'Shared station'],
-      showIf: (config) => config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'sharedStation.logo',
-      name: 'Shared station logo URL',
-      defaultValue: defaultOptions.sharedStation.logo,
-      category: ['Stations', 'Shared station'],
-      showIf: (config) => config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'sharedStation.nowPlayingPreset',
-      name: 'Shared now playing preset',
-      defaultValue: defaultOptions.sharedStation.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Shared station'],
-      showIf: (config) => config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'sharedStation.nowPlayingApiUrl',
-      name: 'Shared now playing API URL',
-      defaultValue: defaultOptions.sharedStation.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Shared station'],
-      showIf: (config) => config.sameStationAllDays && config.sharedStation?.nowPlayingPreset !== 'none',
-    })
     .addBooleanSwitch({
       path: 'thursdayOverride.enabled',
       name: 'Enable timed override',
@@ -184,366 +252,27 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       },
       category: ['Schedule override'],
       showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.sunday',
-      name: 'Apply on Sunday',
-      defaultValue: defaultOptions.thursdayOverride.days.sunday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.monday',
-      name: 'Apply on Monday',
-      defaultValue: defaultOptions.thursdayOverride.days.monday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.tuesday',
-      name: 'Apply on Tuesday',
-      defaultValue: defaultOptions.thursdayOverride.days.tuesday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.wednesday',
-      name: 'Apply on Wednesday',
-      defaultValue: defaultOptions.thursdayOverride.days.wednesday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.thursday',
-      name: 'Apply on Thursday',
-      defaultValue: defaultOptions.thursdayOverride.days.thursday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.friday',
-      name: 'Apply on Friday',
-      defaultValue: defaultOptions.thursdayOverride.days.friday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addBooleanSwitch({
-      path: 'thursdayOverride.days.saturday',
-      name: 'Apply on Saturday',
-      defaultValue: defaultOptions.thursdayOverride.days.saturday,
-      category: ['Schedule override', 'Days'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addTextInput({
-      path: 'thursdayOverride.station.name',
-      name: 'Override station name',
-      defaultValue: defaultOptions.thursdayOverride.station.name,
-      category: ['Schedule override'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addTextInput({
-      path: 'thursdayOverride.station.url',
-      name: 'Override station URL',
-      defaultValue: defaultOptions.thursdayOverride.station.url,
-      category: ['Schedule override'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addTextInput({
-      path: 'thursdayOverride.station.logo',
-      name: 'Override station logo URL',
-      defaultValue: defaultOptions.thursdayOverride.station.logo,
-      category: ['Schedule override'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addSelect({
-      path: 'thursdayOverride.station.nowPlayingPreset',
-      name: 'Override now playing preset',
-      defaultValue: defaultOptions.thursdayOverride.station.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Schedule override'],
-      showIf: (config) => config.thursdayOverride?.enabled,
-    })
-    .addTextInput({
-      path: 'thursdayOverride.station.nowPlayingApiUrl',
-      name: 'Override now playing API URL',
-      defaultValue: defaultOptions.thursdayOverride.station.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Schedule override'],
-      showIf: (config) => config.thursdayOverride?.enabled && config.thursdayOverride?.station?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.sunday.name',
-      name: 'Sunday name',
-      defaultValue: defaultOptions.stations.sunday.name,
-      category: ['Stations', 'Sunday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.sunday.url',
-      name: 'Sunday stream URL',
-      defaultValue: defaultOptions.stations.sunday.url,
-      category: ['Stations', 'Sunday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.sunday.logo',
-      name: 'Sunday logo URL',
-      defaultValue: defaultOptions.stations.sunday.logo,
-      category: ['Stations', 'Sunday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.sunday.nowPlayingPreset',
-      name: 'Sunday now playing preset',
-      defaultValue: defaultOptions.stations.sunday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Sunday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.sunday.nowPlayingApiUrl',
-      name: 'Sunday now playing API URL',
-      defaultValue: defaultOptions.stations.sunday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Sunday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.sunday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.monday.name',
-      name: 'Monday name',
-      defaultValue: defaultOptions.stations.monday.name,
-      category: ['Stations', 'Monday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.monday.url',
-      name: 'Monday stream URL',
-      defaultValue: defaultOptions.stations.monday.url,
-      category: ['Stations', 'Monday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.monday.logo',
-      name: 'Monday logo URL',
-      defaultValue: defaultOptions.stations.monday.logo,
-      category: ['Stations', 'Monday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.monday.nowPlayingPreset',
-      name: 'Monday now playing preset',
-      defaultValue: defaultOptions.stations.monday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Monday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.monday.nowPlayingApiUrl',
-      name: 'Monday now playing API URL',
-      defaultValue: defaultOptions.stations.monday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Monday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.monday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.tuesday.name',
-      name: 'Tuesday name',
-      defaultValue: defaultOptions.stations.tuesday.name,
-      category: ['Stations', 'Tuesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.tuesday.url',
-      name: 'Tuesday stream URL',
-      defaultValue: defaultOptions.stations.tuesday.url,
-      category: ['Stations', 'Tuesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.tuesday.logo',
-      name: 'Tuesday logo URL',
-      defaultValue: defaultOptions.stations.tuesday.logo,
-      category: ['Stations', 'Tuesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.tuesday.nowPlayingPreset',
-      name: 'Tuesday now playing preset',
-      defaultValue: defaultOptions.stations.tuesday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Tuesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.tuesday.nowPlayingApiUrl',
-      name: 'Tuesday now playing API URL',
-      defaultValue: defaultOptions.stations.tuesday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Tuesday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.tuesday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.wednesday.name',
-      name: 'Wednesday name',
-      defaultValue: defaultOptions.stations.wednesday.name,
-      category: ['Stations', 'Wednesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.wednesday.url',
-      name: 'Wednesday stream URL',
-      defaultValue: defaultOptions.stations.wednesday.url,
-      category: ['Stations', 'Wednesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.wednesday.logo',
-      name: 'Wednesday logo URL',
-      defaultValue: defaultOptions.stations.wednesday.logo,
-      category: ['Stations', 'Wednesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.wednesday.nowPlayingPreset',
-      name: 'Wednesday now playing preset',
-      defaultValue: defaultOptions.stations.wednesday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Wednesday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.wednesday.nowPlayingApiUrl',
-      name: 'Wednesday now playing API URL',
-      defaultValue: defaultOptions.stations.wednesday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Wednesday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.wednesday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.thursday.name',
-      name: 'Thursday name',
-      defaultValue: defaultOptions.stations.thursday.name,
-      category: ['Stations', 'Thursday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.thursday.url',
-      name: 'Thursday stream URL',
-      defaultValue: defaultOptions.stations.thursday.url,
-      category: ['Stations', 'Thursday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.thursday.logo',
-      name: 'Thursday logo URL',
-      defaultValue: defaultOptions.stations.thursday.logo,
-      category: ['Stations', 'Thursday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.thursday.nowPlayingPreset',
-      name: 'Thursday now playing preset',
-      defaultValue: defaultOptions.stations.thursday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Thursday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.thursday.nowPlayingApiUrl',
-      name: 'Thursday now playing API URL',
-      defaultValue: defaultOptions.stations.thursday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Thursday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.thursday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.friday.name',
-      name: 'Friday name',
-      defaultValue: defaultOptions.stations.friday.name,
-      category: ['Stations', 'Friday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.friday.url',
-      name: 'Friday stream URL',
-      defaultValue: defaultOptions.stations.friday.url,
-      category: ['Stations', 'Friday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.friday.logo',
-      name: 'Friday logo URL',
-      defaultValue: defaultOptions.stations.friday.logo,
-      category: ['Stations', 'Friday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.friday.nowPlayingPreset',
-      name: 'Friday now playing preset',
-      defaultValue: defaultOptions.stations.friday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Friday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.friday.nowPlayingApiUrl',
-      name: 'Friday now playing API URL',
-      defaultValue: defaultOptions.stations.friday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Friday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.friday?.nowPlayingPreset !== 'none',
-    })
-    .addTextInput({
-      path: 'stations.saturday.name',
-      name: 'Saturday name',
-      defaultValue: defaultOptions.stations.saturday.name,
-      category: ['Stations', 'Saturday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.saturday.url',
-      name: 'Saturday stream URL',
-      defaultValue: defaultOptions.stations.saturday.url,
-      category: ['Stations', 'Saturday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.saturday.logo',
-      name: 'Saturday logo URL',
-      defaultValue: defaultOptions.stations.saturday.logo,
-      category: ['Stations', 'Saturday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addSelect({
-      path: 'stations.saturday.nowPlayingPreset',
-      name: 'Saturday now playing preset',
-      defaultValue: defaultOptions.stations.saturday.nowPlayingPreset,
-      settings: {
-        options: nowPlayingPresetOptions,
-      },
-      category: ['Stations', 'Saturday'],
-      showIf: (config) => !config.sameStationAllDays,
-    })
-    .addTextInput({
-      path: 'stations.saturday.nowPlayingApiUrl',
-      name: 'Saturday now playing API URL',
-      defaultValue: defaultOptions.stations.saturday.nowPlayingApiUrl,
-      description: 'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).',
-      category: ['Stations', 'Saturday'],
-      showIf: (config) => !config.sameStationAllDays && config.stations?.saturday?.nowPlayingPreset !== 'none',
     });
+
+  addStationEditorGroup(
+    'sharedStation',
+    defaultOptions.sharedStation,
+    'Shared station',
+    ['Stations', 'Shared station'],
+    (config) => config.sameStationAllDays
+  );
+
+  addOverrideDayToggles();
+
+  addStationEditorGroup(
+    'thursdayOverride.station',
+    defaultOptions.thursdayOverride.station,
+    'Override station',
+    ['Schedule override'],
+    (config) => config.thursdayOverride?.enabled
+  );
+
+  addDailyStationEditors();
+
+  return builder;
 });
