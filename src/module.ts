@@ -1,24 +1,13 @@
 import { PanelPlugin } from '@grafana/data';
 import { defaultOptions, SimpleOptions } from './types';
 import { SimplePanel } from './components/SimplePanel';
+import { DayPresetSelectorEditor } from './components/DayPresetSelectorEditor';
 
 const nowPlayingPresetOptions = [
   { value: 'none', label: 'None' },
   { value: 'npo-sterren-nl', label: 'NPO Sterren NL' },
   { value: 'arrow-classic-rock', label: 'Arrow Classic Rock' },
   { value: 'custom-json', label: 'Custom JSON API (artist/title/image)' },
-];
-
-const stationPresetSelectorOptions: Array<{
-  value: 'none' | 'preset1' | 'preset2' | 'preset3' | 'preset4' | 'preset5';
-  label: string;
-}> = [
-  { value: 'none', label: 'No preset (use custom day station)' },
-  { value: 'preset1', label: 'Preset 1' },
-  { value: 'preset2', label: 'Preset 2' },
-  { value: 'preset3', label: 'Preset 3' },
-  { value: 'preset4', label: 'Preset 4' },
-  { value: 'preset5', label: 'Preset 5' },
 ];
 
 const nowPlayingApiDescription =
@@ -128,13 +117,13 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
 
   const addDailyStationEditors = () => {
     weekDays.forEach((day) => {
-      builder.addSelect({
+      builder.addCustomEditor({
+        id: `day-preset-selection-${day.key}`,
         path: `dayPresetSelection.${day.key}`,
         name: `${day.label} station preset`,
         defaultValue: defaultOptions.dayPresetSelection[day.key],
-        settings: {
-          options: stationPresetSelectorOptions,
-        },
+        editor: DayPresetSelectorEditor,
+        settings: { dayKey: day.key },
         category: ['Stations', day.label],
         showIf: (config) => !config.sameStationAllDays && config.useStationPresets,
       });

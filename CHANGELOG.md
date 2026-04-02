@@ -1,7 +1,25 @@
 # Changelog
 
-## 1.1.2 (2026-04-02)
+## 1.2.0 (2026-04-02)
 
+### Added
+
+- Added optional station presets as a non-breaking addition to day-by-day configuration.
+- Added five editable preset slots with stream URL, logo URL, and now playing settings.
+- Added per-day preset selection with fallback to custom day station fields when no preset is selected.
+
+### Changed
+
+- Refactored panel option builder to helper-based station/day option generation to reduce duplication and regression risk.
+- Updated day preset selector to show dynamic preset display names based on configured station names.
+
+## 1.1.3 (2026-04-02)
+
+### Changed
+
+- More complete readme
+
+## 1.1.2 (2026-04-02)
 ### Added
 
 - New logo
