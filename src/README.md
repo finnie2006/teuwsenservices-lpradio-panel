@@ -1,50 +1,50 @@
-<!-- This README file is going to be the one displayed on the Grafana.com website for your plugin. Uncomment and replace the content here before publishing.
+# Radio Panel
 
-Remove any remaining comments before publishing as these may be displayed on Grafana.com -->
+Interactive vinyl-style radio panel for Grafana. The panel supports weekday-based station scheduling, optional timed override, and now playing metadata per station.
 
-# Grafana Radio-Panel
+## Screenshots
 
-<!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
+![Compact panel view](https://raw.githubusercontent.com/finnie2006/teuwsenservices-lpradio-panel/main/src/img/screenshot-1.png)
+![Dashboard view](https://raw.githubusercontent.com/finnie2006/teuwsenservices-lpradio-panel/main/src/img/screenshot-2.png)
 
-**BEFORE YOU BEGIN**
-- Ensure all links are absolute URLs so that they will work when the README is displayed within Grafana and Grafana.com
-- Be inspired ✨
-  - [grafana-polystat-panel](https://github.com/grafana/grafana-polystat-panel)
-  - [volkovlabs-variable-panel](https://github.com/volkovlabs/volkovlabs-variable-panel)
+## Features
 
-**ADD SOME BADGES**
+- Clickable vinyl disk UI that plays a configured radio stream.
+- Day-by-day station setup or one shared station for all days.
+- Timed override for selected weekdays starting at a specific hour.
+- Now playing presets for NPO Sterren NL, Arrow Classic Rock, and custom JSON APIs.
+- Optional continuous playback mode for dashboard playlist transitions.
+- Styling controls for panel, disk, and label borders.
+- Grafana variable support in station name, stream URL, and logo URL.
 
-Badges convey useful information at a glance for users whether in the Catalog or viewing the source code. You can use the generator on [Shields.io](https://shields.io/badges/dynamic-json-badge) together with the Grafana.com API
-to create dynamic badges that update automatically when you publish a new version to the marketplace.
+## Now Playing and CORS
 
-- For the URL parameter use `https://grafana.com/api/plugins/your-plugin-id`.
-- Example queries:
-  - Downloads: `$.downloads`
-  - Catalog Version: `$.version`
-  - Grafana Dependency: `$.grafanaDependency`
-  - Signature Type: `$.versionSignatureType`
-- Optionally, for the logo parameter use `grafana`.
+This panel runs in the browser as a Grafana panel plugin and cannot use Grafana's server-side data source proxy for arbitrary HTTP requests. Some external now-playing APIs block browser-origin requests due to CORS policy.
 
-Full example: ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/grafana-polystat-panel&label=Marketplace&prefix=v&color=F47A20)
+The Arrow Classic Rock preset uses `r.jina.ai` as a default CORS-friendly wrapper so metadata can be fetched in browser context.
 
-Consider other [badges](https://shields.io/badges) as you feel appropriate for your project.
+You can set one global CORS proxy for all stations with the panel option `Now playing CORS proxy URL`.
+- Leave empty to use the preset default behavior.
+- Use a URL prefix (for example `https://r.jina.ai/`) to prepend the API URL.
+- Or use `{{url}}` placeholder when your proxy expects a query parameter (for example `https://my-proxy.example/fetch?url={{url}}`).
 
-## Overview / Introduction
-Provide one or more paragraphs as an introduction to your plugin to help users understand why they should use it.
+When a now-playing request is blocked by CORS (or another network-level browser restriction), the panel stops polling that endpoint for the active station and falls back to normal station/status text. To keep now-playing metadata enabled, use endpoints that allow browser CORS or place a CORS-enabled proxy in front of the metadata API.
 
-Consider including screenshots:
-- in [plugin.json](https://grafana.com/developers/plugin-tools/reference/plugin-json#info) include them as relative links.
-- in the README ensure they are absolute URLs.
+## Add your own now-playing API
+
+Yes. You can configure your own endpoint without code changes:
+
+1. Set the station `now playing preset` to `Custom JSON API`.
+2. Fill in `now playing API URL` with your endpoint.
+3. Optionally set `Now playing CORS proxy URL` when the endpoint blocks browser CORS.
+
+The custom parser tries common keys such as `artist`, `title`, `song`, `track`, `image`, and `coverUrl`.
 
 ## Requirements
-List any requirements or dependencies they may need to run the plugin.
 
-## Getting Started
-Provide a quick start on how to configure and use the plugin.
+- Grafana `>=12.3.0`
 
-## Documentation
-If your project has dedicated documentation available for users, provide links here. For help in following Grafana's style recommendations for technical documentation, refer to our [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/).
+## Support
 
-## Contributing
-Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
--->
+- Repository: https://github.com/finnie2006/teuwsenservices-lpradio-panel
+- Issues: https://github.com/finnie2006/teuwsenservices-lpradio-panel/issues
