@@ -17,6 +17,26 @@ export interface StationsByDay {
   saturday: StationOption;
 }
 
+export type StationPresetId = 'preset1' | 'preset2' | 'preset3' | 'preset4' | 'preset5';
+
+export interface StationPresets {
+  preset1: StationOption;
+  preset2: StationOption;
+  preset3: StationOption;
+  preset4: StationOption;
+  preset5: StationOption;
+}
+
+export interface DayPresetSelection {
+  sunday: StationPresetId | 'none';
+  monday: StationPresetId | 'none';
+  tuesday: StationPresetId | 'none';
+  wednesday: StationPresetId | 'none';
+  thursday: StationPresetId | 'none';
+  friday: StationPresetId | 'none';
+  saturday: StationPresetId | 'none';
+}
+
 export interface DaySelection {
   sunday: boolean;
   monday: boolean;
@@ -52,6 +72,9 @@ export interface SimpleOptions {
   labelBorderColor: string;
   labelBorderWidth: number;
   stations: StationsByDay;
+  useStationPresets: boolean;
+  stationPresets: StationPresets;
+  dayPresetSelection: DayPresetSelection;
   thursdayOverride: ThursdayOverrideOption;
 }
 
@@ -125,6 +148,45 @@ export const defaultOptions: SimpleOptions = {
       'https://19993.live.streamtheworld.com/SKYRADIO.mp3',
       'https://www.skyradio.nl/favicon.ico'
     ),
+  },
+  useStationPresets: false,
+  stationPresets: {
+    preset1: defaultStation(
+      'NPO Radio 2',
+      'https://icecast.omroep.nl/radio2-bb-mp3',
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdCJLx8IGdXAypZynnhiAdTxFXP-uOXKQGnA&s'
+    ),
+    preset2: defaultStation(
+      'Arrow Classic Rock',
+      'https://stream.player.arrow.nl/arrowcr',
+      'https://www.arrow.nl/wp-content/uploads/2020/08/logo.png',
+      'arrow-classic-rock'
+    ),
+    preset3: defaultStation(
+      'JOE Nonstop!',
+      'https://stream.joe.nl/joe/mp3',
+      'https://upload.wikimedia.org/wikipedia/commons/1/15/JOE_Logo_2023.png'
+    ),
+    preset4: defaultStation(
+      'Sterren NL!',
+      'https://icecast.omroep.nl/radio2-sterrennl-mp3',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/NPO_Sterren_NL_Logo_2014.svg/1280px-NPO_Sterren_NL_Logo_2014.svg.png',
+      'npo-sterren-nl'
+    ),
+    preset5: defaultStation(
+      'Sky Radio',
+      'https://19993.live.streamtheworld.com/SKYRADIO.mp3',
+      'https://www.skyradio.nl/favicon.ico'
+    ),
+  },
+  dayPresetSelection: {
+    sunday: 'preset1',
+    monday: 'preset2',
+    tuesday: 'preset2',
+    wednesday: 'preset2',
+    thursday: 'preset3',
+    friday: 'preset4',
+    saturday: 'preset5',
   },
   thursdayOverride: {
     enabled: true,

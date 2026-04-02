@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GrafanaTheme2, PanelProps } from '@grafana/data';
-import { defaultOptions, SimpleOptions, StationOption, StationsByDay } from 'types';
+import { defaultOptions, SimpleOptions, StationOption, StationPresetId, StationsByDay } from 'types';
 import { css, cx, keyframes } from '@emotion/css';
 import { useStyles2 } from '@grafana/ui';
 
@@ -164,6 +164,23 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
     ...options,
     sameStationAllDays: options?.sameStationAllDays ?? defaultOptions.sameStationAllDays,
     sharedStation: mergeStation(options?.sharedStation, defaultOptions.sharedStation),
+    useStationPresets: options?.useStationPresets ?? defaultOptions.useStationPresets,
+    stationPresets: {
+      preset1: mergeStation(options?.stationPresets?.preset1, defaultOptions.stationPresets.preset1),
+      preset2: mergeStation(options?.stationPresets?.preset2, defaultOptions.stationPresets.preset2),
+      preset3: mergeStation(options?.stationPresets?.preset3, defaultOptions.stationPresets.preset3),
+      preset4: mergeStation(options?.stationPresets?.preset4, defaultOptions.stationPresets.preset4),
+      preset5: mergeStation(options?.stationPresets?.preset5, defaultOptions.stationPresets.preset5),
+    },
+    dayPresetSelection: {
+      sunday: options?.dayPresetSelection?.sunday ?? defaultOptions.dayPresetSelection.sunday,
+      monday: options?.dayPresetSelection?.monday ?? defaultOptions.dayPresetSelection.monday,
+      tuesday: options?.dayPresetSelection?.tuesday ?? defaultOptions.dayPresetSelection.tuesday,
+      wednesday: options?.dayPresetSelection?.wednesday ?? defaultOptions.dayPresetSelection.wednesday,
+      thursday: options?.dayPresetSelection?.thursday ?? defaultOptions.dayPresetSelection.thursday,
+      friday: options?.dayPresetSelection?.friday ?? defaultOptions.dayPresetSelection.friday,
+      saturday: options?.dayPresetSelection?.saturday ?? defaultOptions.dayPresetSelection.saturday,
+    },
     nowPlayingCorsProxyUrl: options?.nowPlayingCorsProxyUrl ?? defaultOptions.nowPlayingCorsProxyUrl,
     panelBorderColor: options?.panelBorderColor || defaultOptions.panelBorderColor,
     panelBorderWidth: options?.panelBorderWidth ?? defaultOptions.panelBorderWidth,
@@ -218,6 +235,28 @@ const stationByDay = (day: number, stations: StationsByDay): StationOption => {
   };
 
   return map[day] ?? stations.sunday;
+};
+
+const dayKeyByDateIndex = (day: number): keyof StationsByDay => {
+  const map: Record<number, keyof StationsByDay> = {
+    0: 'sunday',
+    1: 'monday',
+    2: 'tuesday',
+    3: 'wednesday',
+    4: 'thursday',
+    5: 'friday',
+    6: 'saturday',
+  };
+
+  return map[day] ?? 'sunday';
+};
+
+const stationFromPresetId = (presetId: StationPresetId | 'none', options: SimpleOptions): StationOption | null => {
+  if (presetId === 'none') {
+    return null;
+  }
+
+  return options.stationPresets[presetId] ?? null;
 };
 
 const isOverrideDay = (day: number, days: SimpleOptions['thursdayOverride']['days']): boolean => {
@@ -496,9 +535,23 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     (date: Date): StationOption => {
       const day = date.getDay();
       const hour = date.getHours();
-      const dayStation = safeOptions.sameStationAllDays
-        ? safeOptions.sharedStation
-        : stationByDay(day, safeOptions.stations);
+      const dayKey = dayKeyByDateIndex(day);
+
+      const dayStation = (() => {
+        if (safeOptions.sameStationAllDays) {
+          return safeOptions.sharedStation;
+        }
+
+        if (safeOptions.useStationPresets) {
+          const selectedPresetId = safeOptions.dayPresetSelection[dayKey] ?? 'none';
+          const stationFromPreset = stationFromPresetId(selectedPresetId, safeOptions);
+          if (stationFromPreset) {
+            return stationFromPreset;
+          }
+        }
+
+        return stationByDay(day, safeOptions.stations);
+      })();
 
       if (
         safeOptions.thursdayOverride.enabled &&

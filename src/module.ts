@@ -9,6 +9,18 @@ const nowPlayingPresetOptions = [
   { value: 'custom-json', label: 'Custom JSON API (artist/title/image)' },
 ];
 
+const stationPresetSelectorOptions: Array<{
+  value: 'none' | 'preset1' | 'preset2' | 'preset3' | 'preset4' | 'preset5';
+  label: string;
+}> = [
+  { value: 'none', label: 'No preset (use custom day station)' },
+  { value: 'preset1', label: 'Preset 1' },
+  { value: 'preset2', label: 'Preset 2' },
+  { value: 'preset3', label: 'Preset 3' },
+  { value: 'preset4', label: 'Preset 4' },
+  { value: 'preset5', label: 'Preset 5' },
+];
+
 const nowPlayingApiDescription =
   'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).';
 
@@ -82,6 +94,11 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       return config.stations?.[dayKey]?.nowPlayingPreset ?? 'none';
     }
 
+    if (keyParts.length === 2 && keyParts[0] === 'stationPresets') {
+      const presetKey = keyParts[1] as keyof SimpleOptions['stationPresets'];
+      return config.stationPresets?.[presetKey]?.nowPlayingPreset ?? 'none';
+    }
+
     if (pathPrefix === 'sharedStation') {
       return config.sharedStation?.nowPlayingPreset ?? 'none';
     }
@@ -91,6 +108,10 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
     }
 
     return 'none';
+  };
+
+  const getSelectedDayPresetId = (config: SimpleOptions, dayKey: WeekDayKey): string => {
+    return config.dayPresetSelection?.[dayKey] ?? 'none';
   };
 
   const addOverrideDayToggles = () => {
@@ -107,12 +128,23 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
 
   const addDailyStationEditors = () => {
     weekDays.forEach((day) => {
+      builder.addSelect({
+        path: `dayPresetSelection.${day.key}`,
+        name: `${day.label} station preset`,
+        defaultValue: defaultOptions.dayPresetSelection[day.key],
+        settings: {
+          options: stationPresetSelectorOptions,
+        },
+        category: ['Stations', day.label],
+        showIf: (config) => !config.sameStationAllDays && config.useStationPresets,
+      });
+
       addStationEditorGroup(
         `stations.${day.key}`,
         defaultOptions.stations[day.key],
         day.label,
         ['Stations', day.label],
-        (config) => !config.sameStationAllDays
+        (config) => !config.sameStationAllDays && (!config.useStationPresets || getSelectedDayPresetId(config, day.key) === 'none')
       );
     });
   };
@@ -236,6 +268,13 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       category: ['Stations'],
     })
     .addBooleanSwitch({
+      path: 'useStationPresets',
+      name: 'Use station presets for days',
+      defaultValue: defaultOptions.useStationPresets,
+      description: 'Enable a preset tab and select a preset per day instead of filling each day manually.',
+      category: ['Presets'],
+    })
+    .addBooleanSwitch({
       path: 'thursdayOverride.enabled',
       name: 'Enable timed override',
       defaultValue: defaultOptions.thursdayOverride.enabled,
@@ -261,6 +300,12 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
     ['Stations', 'Shared station'],
     (config) => config.sameStationAllDays
   );
+
+  addStationEditorGroup('stationPresets.preset1', defaultOptions.stationPresets.preset1, 'Preset 1', ['Presets', 'Preset 1'], (config) => config.useStationPresets);
+  addStationEditorGroup('stationPresets.preset2', defaultOptions.stationPresets.preset2, 'Preset 2', ['Presets', 'Preset 2'], (config) => config.useStationPresets);
+  addStationEditorGroup('stationPresets.preset3', defaultOptions.stationPresets.preset3, 'Preset 3', ['Presets', 'Preset 3'], (config) => config.useStationPresets);
+  addStationEditorGroup('stationPresets.preset4', defaultOptions.stationPresets.preset4, 'Preset 4', ['Presets', 'Preset 4'], (config) => config.useStationPresets);
+  addStationEditorGroup('stationPresets.preset5', defaultOptions.stationPresets.preset5, 'Preset 5', ['Presets', 'Preset 5'], (config) => config.useStationPresets);
 
   addOverrideDayToggles();
 
