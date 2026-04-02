@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.2 (2026-04-02)
+
+### Added
+
+- New logo
+### Changed
+
+- Better restart stream handling
+
 ## 1.1 (2026-03-31)
 
 ### Added
