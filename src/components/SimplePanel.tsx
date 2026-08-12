@@ -385,18 +385,28 @@ const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
 const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   const normalizedPayload = normalizeArrowPayload(payload);
 
+  const firstTrackCandidate = Array.isArray(normalizedPayload?.tracks) ? normalizedPayload.tracks[0] : null;
+  const candidate = firstTrackCandidate ?? normalizedPayload;
+
   const artist =
-    normalizedPayload?.artist?.toString().trim() ??
+    candidate?.artist?.toString().trim() ??
     normalizedPayload?.station?.toString().trim() ??
     normalizedPayload?.name?.toString().trim() ??
     '';
   const song =
+    candidate?.title?.toString().trim() ??
+    candidate?.song?.toString().trim() ??
+    candidate?.track?.toString().trim() ??
     normalizedPayload?.title?.toString().trim() ??
     normalizedPayload?.song?.toString().trim() ??
     normalizedPayload?.track?.toString().trim() ??
     normalizedPayload?.nowPlaying?.toString().trim() ??
     '';
   const coverUrl =
+    candidate?.albumArt?.toString().trim() ??
+    candidate?.coverUrl?.toString().trim() ??
+    candidate?.image?.toString().trim() ??
+    candidate?.cover?.toString().trim() ??
     normalizedPayload?.image?.toString().trim() ??
     normalizedPayload?.cover?.toString().trim() ??
     normalizedPayload?.coverUrl?.toString().trim() ??
@@ -410,7 +420,7 @@ const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   return { artist, song, coverUrl };
 };
 
-const parseNowPlayingTrack = (preset: string, payload: any): NowPlayingTrack | null => {
+export const parseNowPlayingTrack = (preset: string, payload: any): NowPlayingTrack | null => {
   const parser = nowPlayingPresets[preset]?.parser ?? 'generic';
 
   if (parser === 'arrow') {
