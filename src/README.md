@@ -53,28 +53,28 @@ Yes. You can configure your own endpoint without code changes:
 
 The custom parser tries common keys such as `artist`, `title`, `song`, `track`, `image`, and `coverUrl`, as well as common nested structures like `tracks[0]`, `currentTrack`, `latestTrack`, and `data.items`.
 
-### Example: Mediahuis playlist
+### Example: custom now-playing API
 
 ```text
-https://api.mediahuisradio.nl/api/nowplaying/playlist?stationKey=slam&brand=slam
+https://example.com/api/nowplaying?station=main
 ```
 
 Example payload shape:
 
 ```json
 {
-  "stationKey": "slam",
+  "station": "main",
   "tracks": [
     {
       "artist": "Mau P",
       "title": "Neck",
-      "albumArt": "https://cdn-metadata.mediahuisradio.nl/metadata/covers/abc123.jpg"
+      "albumArt": "https://cdn.example.com/covers/abc123.jpg"
     }
   ]
 }
 ```
 
-This is supported without code changes.
+The parser also supports other common shapes such as `currentTrack`, `latestTrack`, `data.items`, `artist` + `title` at the root, and `coverUrl` / `image` / `artwork` values.
 
 ## Requirements
 

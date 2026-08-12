@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0 (2026-08-12)
+
+### Added
+
+- Added broader custom JSON now playing support for nested payloads and playlist arrays.
+- Added a configurable `No track available` placeholder when a valid API returns no current metadata.
+- Added documentation examples for generic custom API integrations.
+
+### Changed
+
+- Improved custom JSON parsing for common shapes such as `tracks`, `currentTrack`, `latestTrack`, and nested `data` objects.
+- Updated the readme to explain generic custom API usage instead of a single region-specific example.
+
+### Fixed
+
+- Fixed custom JSON parsing for APIs that return track metadata inside arrays rather than directly at the root.
+- Improved handling of empty or incomplete now playing responses without leaving the panel in a stale status state.
+
 ## 1.2.0 (2026-04-02)
 
 ### Added

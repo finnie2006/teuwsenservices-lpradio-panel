@@ -1,7 +1,7 @@
 import { parseNowPlayingTrack } from './SimplePanel';
 
 describe('custom JSON now playing parsing', () => {
-  it('parses the Mediahuis playlist payload with tracks array and albumArt', () => {
+  it('parses a playlist payload with tracks array and albumArt', () => {
     const payload = {
       stationKey: 'slam',
       tracks: [
@@ -20,5 +20,15 @@ describe('custom JSON now playing parsing', () => {
       song: 'Neck',
       coverUrl: 'https://cdn-metadata.mediahuisradio.nl/metadata/covers/abc123.jpg',
     });
+  });
+
+  it('returns null for a valid JSON payload without track metadata', () => {
+    const payload = {
+      stationKey: 'slam',
+      tracks: [],
+      status: 'ok',
+    };
+
+    expect(parseNowPlayingTrack('custom-json', payload)).toBeNull();
   });
 });

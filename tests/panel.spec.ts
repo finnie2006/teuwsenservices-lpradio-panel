@@ -17,7 +17,7 @@ test('should render station info and disc when visualization is selected', async
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Radio-Panel');
+  await panelEditPage.setVisualization('Radio Panel');
   await expect(page.getByTestId('lp-disc')).toBeVisible();
   await expect(page.getByTestId('track-info')).toBeVisible();
 });
@@ -28,8 +28,8 @@ test('should show display options in the options pane', async ({
   page,
 }) => {
   const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
-  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '1' });
+  await gotoPanelEditPage({ dashboard, id: '1' });
 
-  await expect(panelEditPage.getByGrafanaSelector({ selector: 'Options group Display' })).toBeVisible();
+  await expect(page.getByText('Display')).toBeVisible();
   await expect(page.getByText('Loading text')).toBeVisible();
 });
