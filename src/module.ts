@@ -11,7 +11,7 @@ const nowPlayingPresetOptions = [
 ];
 
 const nowPlayingApiDescription =
-  'Leave empty to use the selected preset URL. Custom JSON API reads artist/title/image (also supports song/track/coverUrl variants).';
+  'Leave empty to use the selected preset URL. Custom JSON API supports artist/title/image and common nested payloads such as tracks[0], currentTrack, latestTrack, or data.items.';
 
 const weekDays = [
   { key: 'sunday', label: 'Sunday' },
@@ -155,6 +155,13 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       path: 'onAirPrefix',
       name: 'On-air prefix',
       defaultValue: defaultOptions.onAirPrefix,
+      category: ['Display'],
+    })
+    .addTextInput({
+      path: 'noTrackAvailableText',
+      name: 'No track available text',
+      description: 'Shown when a now-playing API is configured but returns no current track metadata.',
+      defaultValue: defaultOptions.noTrackAvailableText,
       category: ['Display'],
     })
     .addTextInput({

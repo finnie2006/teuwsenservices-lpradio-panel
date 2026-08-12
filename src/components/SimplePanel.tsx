@@ -382,14 +382,38 @@ const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   return { artist, song, coverUrl };
 };
 
+const getNestedTrackCandidates = (payload: any): any[] => {
+  const nested = [payload, payload?.currentTrack, payload?.nowPlaying, payload?.latestTrack, payload?.data];
+
+  return nested.concat(
+    payload?.tracks ?? [],
+    payload?.items ?? [],
+    payload?.results ?? [],
+    payload?.data?.tracks ?? [],
+    payload?.data?.items ?? [],
+    payload?.data?.results ?? [],
+    payload?.data?.currentTrack ? [payload.data.currentTrack] : [],
+    payload?.data?.nowPlaying ? [payload.data.nowPlaying] : [],
+    payload?.data?.latestTrack ? [payload.data.latestTrack] : []
+  );
+};
+
 const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
   const normalizedPayload = normalizeArrowPayload(payload);
+  const candidatePool = getNestedTrackCandidates(normalizedPayload);
+  const candidate = candidatePool.find((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
 
-  const firstTrackCandidate = Array.isArray(normalizedPayload?.tracks) ? normalizedPayload.tracks[0] : null;
-  const candidate = firstTrackCandidate ?? normalizedPayload;
+    return (
+      entry.artist || entry.title || entry.song || entry.track || entry.nowPlaying || entry.name || entry.station
+    );
+  });
 
   const artist =
     candidate?.artist?.toString().trim() ??
+    normalizedPayload?.artist?.toString().trim() ??
     normalizedPayload?.station?.toString().trim() ??
     normalizedPayload?.name?.toString().trim() ??
     '';
@@ -397,6 +421,7 @@ const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
     candidate?.title?.toString().trim() ??
     candidate?.song?.toString().trim() ??
     candidate?.track?.toString().trim() ??
+    candidate?.nowPlaying?.toString().trim() ??
     normalizedPayload?.title?.toString().trim() ??
     normalizedPayload?.song?.toString().trim() ??
     normalizedPayload?.track?.toString().trim() ??
@@ -407,10 +432,12 @@ const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
     candidate?.coverUrl?.toString().trim() ??
     candidate?.image?.toString().trim() ??
     candidate?.cover?.toString().trim() ??
+    candidate?.artwork?.toString().trim() ??
     normalizedPayload?.image?.toString().trim() ??
     normalizedPayload?.cover?.toString().trim() ??
     normalizedPayload?.coverUrl?.toString().trim() ??
     normalizedPayload?.artwork?.toString().trim() ??
+    normalizedPayload?.albumArt?.toString().trim() ??
     '';
 
   if (artist.length === 0 && song.length === 0) {
@@ -922,6 +949,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     setIsPlaying(false);
   };
 
+  const noTrackAvailableText = replaceVariables(safeOptions.noTrackAvailableText || 'No track available');
   const statusText = playbackError
     ? replaceVariables(safeOptions.clickToStartText)
     : isPlaying
@@ -932,7 +960,9 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
 
   const nowPlayingText = activeNowPlayingTrack
     ? `${activeNowPlayingTrack.artist}${activeNowPlayingTrack.artist && activeNowPlayingTrack.song ? ' - ' : ''}${activeNowPlayingTrack.song}`
-    : statusText;
+    : shouldShowNowPlaying
+      ? noTrackAvailableText
+      : statusText;
   const labelImageSrc = activeNowPlayingTrack?.coverUrl || resolvedStation.logo;
   const labelAltText = activeNowPlayingTrack
     ? `${activeNowPlayingTrack.artist} - ${activeNowPlayingTrack.song}`

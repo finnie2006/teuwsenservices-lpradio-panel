@@ -40,7 +40,7 @@ You can set one global CORS proxy for all stations with the panel option `Now pl
 - Use a URL prefix (for example `https://r.jina.ai/`) to prepend the API URL.
 - Or use `{{url}}` placeholder when your proxy expects a query parameter (for example `https://my-proxy.example/fetch?url={{url}}`).
 
-When a now-playing request is blocked by CORS (or another network-level browser restriction), the panel stops polling that endpoint for the active station and falls back to normal station/status text. To keep now-playing metadata enabled, use endpoints that allow browser CORS or place a CORS-enabled proxy in front of the metadata API.
+When a now-playing request is blocked by CORS (or another network-level browser restriction), the panel stops polling that endpoint for the active station and falls back to the normal station/status text. When a configured API responds successfully but has no current track, the panel shows a dedicated placeholder such as `No track available` instead of the old station status text.
 
 ## Add your own now-playing API
 
@@ -49,8 +49,32 @@ Yes. You can configure your own endpoint without code changes:
 1. Set the station `now playing preset` to `Custom JSON API`.
 2. Fill in `now playing API URL` with your endpoint.
 3. Optionally set `Now playing CORS proxy URL` when the endpoint blocks browser CORS.
+4. If the API is valid but no track is currently returned, the panel shows the `No track available text` option from the Display settings.
 
-The custom parser tries common keys such as `artist`, `title`, `song`, `track`, `image`, and `coverUrl`.
+The custom parser tries common keys such as `artist`, `title`, `song`, `track`, `image`, and `coverUrl`, as well as common nested structures like `tracks[0]`, `currentTrack`, `latestTrack`, and `data.items`.
+
+### Example: Mediahuis playlist
+
+```text
+https://api.mediahuisradio.nl/api/nowplaying/playlist?stationKey=slam&brand=slam
+```
+
+Example payload shape:
+
+```json
+{
+  "stationKey": "slam",
+  "tracks": [
+    {
+      "artist": "Mau P",
+      "title": "Neck",
+      "albumArt": "https://cdn-metadata.mediahuisradio.nl/metadata/covers/abc123.jpg"
+    }
+  ]
+}
+```
+
+This is supported without code changes.
 
 ## Requirements
 

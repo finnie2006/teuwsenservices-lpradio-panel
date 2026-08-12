@@ -58,6 +58,7 @@ export interface SimpleOptions {
   loadingText: string;
   clickToStartText: string;
   onAirPrefix: string;
+  noTrackAvailableText: string;
   nowPlayingCorsProxyUrl: string;
   checkIntervalSeconds: number;
   continuePlaybackAcrossDashboards: boolean;
@@ -91,6 +92,7 @@ export const defaultOptions: SimpleOptions = {
   loadingText: 'Loading...',
   clickToStartText: 'Click to start',
   onAirPrefix: 'ON AIR:',
+  noTrackAvailableText: 'No track available',
   nowPlayingCorsProxyUrl: '',
   checkIntervalSeconds: 60,
   continuePlaybackAcrossDashboards: true,
