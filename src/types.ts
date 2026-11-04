@@ -50,6 +50,7 @@ export interface DaySelection {
 export interface ThursdayOverrideOption {
   enabled: boolean;
   startHour: number;
+  endHour: number;
   days: DaySelection;
   station: StationOption;
 }
@@ -60,8 +61,10 @@ export interface SimpleOptions {
   onAirPrefix: string;
   noTrackAvailableText: string;
   nowPlayingCorsProxyUrl: string;
+  nowPlayingOnlyWhilePlaying: boolean;
   checkIntervalSeconds: number;
   continuePlaybackAcrossDashboards: boolean;
+  showStopButtonWithoutPanel: boolean;
   discSize: number;
   goldMatchText: string;
   sameStationAllDays: boolean;
@@ -94,8 +97,10 @@ export const defaultOptions: SimpleOptions = {
   onAirPrefix: 'ON AIR:',
   noTrackAvailableText: 'No track available',
   nowPlayingCorsProxyUrl: '',
+  nowPlayingOnlyWhilePlaying: true,
   checkIntervalSeconds: 60,
   continuePlaybackAcrossDashboards: true,
+  showStopButtonWithoutPanel: true,
   discSize: 250,
   goldMatchText: 'Sterren NL!',
   sameStationAllDays: false,
@@ -191,8 +196,9 @@ export const defaultOptions: SimpleOptions = {
     saturday: 'preset5',
   },
   thursdayOverride: {
-    enabled: true,
+    enabled: false,
     startHour: 15,
+    endHour: 24,
     days: {
       sunday: false,
       monday: false,

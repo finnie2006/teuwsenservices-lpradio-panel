@@ -12,7 +12,7 @@ Interactive vinyl-style radio panel for Grafana. The panel supports weekday-base
 - Clickable vinyl disk UI that plays a configured radio stream.
 - Day-by-day station setup or one shared station for all days.
 - Optional station presets with per-day preset selection.
-- Timed override for selected weekdays starting at a specific hour.
+- Timed override for selected weekdays between a start and end hour.
 - Now playing presets for NPO Sterren NL, Arrow Classic Rock, and custom JSON APIs.
 - Optional continuous playback mode for dashboard playlist transitions.
 - Styling controls for panel, disk, and label borders.
@@ -29,6 +29,16 @@ You can optionally use presets as a faster way to configure day schedules.
 
 This is additive and non-breaking: existing day-by-day station setup continues to work.
 
+## Dashboard playlists
+
+The radio only has to be on one dashboard of a playlist. With `Continue playback in playlists` enabled it keeps playing on dashboards without a radio panel.
+
+1. Put the radio panel on the first dashboard of the playlist. Grafana reloads the page after every third playlist loop, and playback resumes as soon as a radio panel is loaded again.
+2. Click the disc once. Browsers block audio until a visitor interacts with the page, and may block the resume after a reload too. In that case the panel shows the `Start hint text`. On an unattended screen, start Chrome with `--autoplay-policy=no-user-gesture-required`.
+3. While the radio plays on a dashboard without a radio panel, a small stop button is shown. Disable `Show stop button without panel` to hide it on unattended screens.
+
+Stream recovery keeps working on dashboards without a radio panel. The station schedule is only applied while a radio panel is on screen.
+
 ## Now Playing and CORS
 
 This panel runs in the browser as a Grafana panel plugin and cannot use Grafana's server-side data source proxy for arbitrary HTTP requests.
@@ -43,6 +53,8 @@ You can set one global CORS proxy for all stations with the panel option `Now pl
 
 When a now-playing request is blocked by CORS (or another network-level browser restriction), the panel stops polling that endpoint for the active station and falls back to normal station/status text.
 To keep now-playing metadata enabled, use endpoints that allow browser CORS or place a CORS-enabled proxy in front of the metadata API.
+
+By default metadata is only fetched while the panel is playing. Disable `Only fetch now playing while playing` to also show it on a stopped panel.
 
 ## Add your own now-playing API
 

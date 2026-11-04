@@ -1,4 +1,4 @@
-import { parseNowPlayingTrack } from './SimplePanel';
+import { parseNowPlayingTrack } from './nowPlaying';
 
 describe('custom JSON now playing parsing', () => {
   it('parses a playlist payload with tracks array and albumArt', () => {
@@ -30,5 +30,34 @@ describe('custom JSON now playing parsing', () => {
     };
 
     expect(parseNowPlayingTrack('custom-json', payload)).toBeNull();
+  });
+
+  it('does not mistake station fields on the root for the current track', () => {
+    const payload = { name: 'Slam', tracks: [{ artist: 'Mau P', title: 'Neck' }] };
+
+    expect(parseNowPlayingTrack('custom-json', payload)).toEqual({ artist: 'Mau P', song: 'Neck', coverUrl: '' });
+    expect(parseNowPlayingTrack('custom-json', { name: 'Slam', tracks: [] })).toBeNull();
+  });
+
+  it.each(['nowPlaying', 'track', 'currentTrack'])('reads a nested %s object instead of stringifying it', (key) => {
+    const payload = { [key]: { artist: 'Mau P', title: 'Neck' } };
+
+    expect(parseNowPlayingTrack('custom-json', payload)).toEqual({ artist: 'Mau P', song: 'Neck', coverUrl: '' });
+  });
+
+  it('keeps supporting flat payloads with a station name', () => {
+    expect(parseNowPlayingTrack('custom-json', { station: 'Slam', title: 'Neck', image: 'cover.jpg' })).toEqual({
+      artist: 'Slam',
+      song: 'Neck',
+      coverUrl: 'cover.jpg',
+    });
+  });
+
+  it('falls back when a field is an empty string', () => {
+    expect(parseNowPlayingTrack('arrow-classic-rock', { artist: '', station: 'Arrow', title: 'Song' })).toEqual({
+      artist: 'Arrow',
+      song: 'Song',
+      coverUrl: '',
+    });
   });
 });

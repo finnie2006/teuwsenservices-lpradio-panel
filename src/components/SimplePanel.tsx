@@ -1,45 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { GrafanaTheme2, PanelProps } from '@grafana/data';
 import { defaultOptions, SimpleOptions, StationOption, StationPresetId, StationsByDay } from 'types';
 import { css, cx, keyframes } from '@emotion/css';
-import { useStyles2 } from '@grafana/ui';
+import { useStyles2, useTheme2 } from '@grafana/ui';
+import {
+  applyCorsProxyUrl,
+  getNowPlayingApiUrl,
+  nowPlayingPresets,
+  NowPlayingTrack,
+  parseNowPlayingPayload,
+  parseNowPlayingTrack,
+  withNoCacheTimestamp,
+} from './nowPlaying';
+import {
+  followStation,
+  getRadioPlayerSnapshot,
+  registerRadioPanel,
+  subscribeToRadioPlayer,
+  togglePlayback,
+  unregisterRadioPanel,
+} from './radioPlayer';
 
 interface Props extends PanelProps<SimpleOptions> {}
-
-interface NowPlayingTrack {
-  artist: string;
-  song: string;
-  coverUrl: string;
-}
-
-interface NowPlayingPresetConfig {
-  apiUrl: string;
-  parser: 'sterren' | 'arrow' | 'generic';
-  defaultCorsProxyUrl?: string;
-}
-
-declare global {
-  interface Window {
-    __lpRadioGlobalPlayer?: HTMLAudioElement;
-    __lpRadioGlobalPlayerInstanceCount?: number;
-  }
-}
-
-const nowPlayingPresets: Record<string, NowPlayingPresetConfig> = {
-  'npo-sterren-nl': {
-    apiUrl: 'https://www.nporadio5.nl/sterrennl/api/miniplayer/info?channel=npo-sterren-nl',
-    parser: 'sterren',
-  },
-  'arrow-classic-rock': {
-    apiUrl: 'http://player.arrow.nl/index.php?c=Arrow%20Classic%20Rock&_=',
-    parser: 'arrow',
-    defaultCorsProxyUrl: 'https://r.jina.ai/',
-  },
-  'custom-json': {
-    apiUrl: '',
-    parser: 'generic',
-  },
-};
 
 const getStyles = (theme: GrafanaTheme2) => {
   const spin = keyframes`
@@ -63,6 +45,7 @@ const getStyles = (theme: GrafanaTheme2) => {
       justify-content: center;
       padding: ${theme.spacing(1.25)};
       box-sizing: border-box;
+      overflow: hidden;
       font-family: ${theme.typography.fontFamily};
     `,
     trackInfo: css`
@@ -72,7 +55,8 @@ const getStyles = (theme: GrafanaTheme2) => {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      width: 260px;
+      width: 100%;
+      flex-shrink: 0;
       text-align: center;
       transition: color 0.5s ease;
     `,
@@ -150,10 +134,11 @@ const getStyles = (theme: GrafanaTheme2) => {
 };
 
 const mergeOptions = (options: SimpleOptions): SimpleOptions => {
+  // An empty string is a deliberate choice, for example a station without a logo.
   const mergeStation = (station: StationOption | undefined, fallback: StationOption): StationOption => ({
-    name: station?.name || fallback.name,
-    url: station?.url || fallback.url,
-    logo: station?.logo || fallback.logo,
+    name: station?.name ?? fallback.name,
+    url: station?.url ?? fallback.url,
+    logo: station?.logo ?? fallback.logo,
     nowPlayingPreset: station?.nowPlayingPreset || fallback.nowPlayingPreset,
     nowPlayingApiUrl: station?.nowPlayingApiUrl || fallback.nowPlayingApiUrl,
     nowPlayingCorsProxyUrl: station?.nowPlayingCorsProxyUrl || fallback.nowPlayingCorsProxyUrl,
@@ -162,6 +147,8 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
   return {
     ...defaultOptions,
     ...options,
+    checkIntervalSeconds: options?.checkIntervalSeconds ?? defaultOptions.checkIntervalSeconds,
+    discSize: options?.discSize ?? defaultOptions.discSize,
     sameStationAllDays: options?.sameStationAllDays ?? defaultOptions.sameStationAllDays,
     sharedStation: mergeStation(options?.sharedStation, defaultOptions.sharedStation),
     useStationPresets: options?.useStationPresets ?? defaultOptions.useStationPresets,
@@ -200,6 +187,7 @@ const mergeOptions = (options: SimpleOptions): SimpleOptions => {
     thursdayOverride: {
       enabled: options?.thursdayOverride?.enabled ?? defaultOptions.thursdayOverride.enabled,
       startHour: options?.thursdayOverride?.startHour ?? defaultOptions.thursdayOverride.startHour,
+      endHour: options?.thursdayOverride?.endHour ?? defaultOptions.thursdayOverride.endHour,
       days: {
         sunday: options?.thursdayOverride?.days?.sunday ?? defaultOptions.thursdayOverride.days.sunday,
         monday: options?.thursdayOverride?.days?.monday ?? defaultOptions.thursdayOverride.days.monday,
@@ -273,300 +261,14 @@ const isOverrideDay = (day: number, days: SimpleOptions['thursdayOverride']['day
   return map[day] ?? false;
 };
 
-const getNowPlayingApiUrl = (
-  preset: string,
-  customApiUrl: string,
-  replaceVariables: Props['replaceVariables']
-): string => {
-  if (preset === 'none') {
-    return '';
-  }
-
-  const resolvedCustomUrl = replaceVariables(customApiUrl).trim();
-  if (resolvedCustomUrl.length > 0) {
-    return resolvedCustomUrl;
-  }
-
-  if (preset === 'custom-json') {
-    return '';
-  }
-
-  return nowPlayingPresets[preset]?.apiUrl ?? '';
-};
-
-const applyCorsProxyUrl = (apiUrl: string, proxyTemplate: string): string => {
-  const trimmedApiUrl = apiUrl.trim();
-  if (trimmedApiUrl.length === 0) {
-    return '';
-  }
-
-  const trimmedProxyTemplate = proxyTemplate.trim();
-  if (trimmedProxyTemplate.length === 0) {
-    return trimmedApiUrl;
-  }
-
-  if (trimmedProxyTemplate.includes('{{url}}')) {
-    return trimmedProxyTemplate.replace(/{{\s*url\s*}}/g, encodeURIComponent(trimmedApiUrl));
-  }
-
-  return `${trimmedProxyTemplate}${trimmedApiUrl}`;
-};
-
-const parseSterrenNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
-  const track = payload?.data?.radioTrackPlays?.data?.[0];
-  const artist = track?.artist?.toString().trim() ?? '';
-  const song = track?.song?.toString().trim() ?? '';
-  const coverUrl = track?.radioTracks?.coverUrl?.toString().trim() ?? '';
-
-  if (artist.length === 0 && song.length === 0) {
-    return null;
-  }
-
-  return { artist, song, coverUrl };
-};
-
-const tryParseWrappedJsonString = (value: unknown): any | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  return parseNowPlayingPayload(value);
-};
-
-const normalizeArrowPayload = (payload: any): any => {
-  if (!payload || typeof payload !== 'object') {
-    return payload;
-  }
-
-  const directCandidate = payload.detail ?? payload.data?.detail;
-  if (directCandidate && typeof directCandidate === 'object') {
-    return directCandidate;
-  }
-
-  const wrappedJsonCandidate = tryParseWrappedJsonString(payload.data?.content) ?? tryParseWrappedJsonString(payload.content);
-  if (wrappedJsonCandidate && typeof wrappedJsonCandidate === 'object') {
-    return wrappedJsonCandidate;
-  }
-
-  return payload;
-};
-
-const parseArrowNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
-  const normalizedPayload = normalizeArrowPayload(payload);
-
-  const artist =
-    normalizedPayload?.artist?.toString().trim() ??
-    normalizedPayload?.station?.toString().trim() ??
-    '';
-  const song =
-    normalizedPayload?.title?.toString().trim() ??
-    normalizedPayload?.song?.toString().trim() ??
-    normalizedPayload?.track?.toString().trim() ??
-    '';
-  const rawImage =
-    normalizedPayload?.image?.toString().trim() ??
-    normalizedPayload?.coverUrl?.toString().trim() ??
-    '';
-  const normalizedImage = rawImage.replace(/^\/+/, '');
-  const coverUrl =
-    normalizedImage.length === 0
-      ? ''
-      : /^https?:\/\//i.test(normalizedImage)
-        ? normalizedImage
-        : `https://player.arrow.nl/${normalizedImage}`;
-
-  if (artist.length === 0 && song.length === 0) {
-    return null;
-  }
-
-  return { artist, song, coverUrl };
-};
-
-const getNestedTrackCandidates = (payload: any): any[] => {
-  const nested = [payload, payload?.currentTrack, payload?.nowPlaying, payload?.latestTrack, payload?.data];
-
-  return nested.concat(
-    payload?.tracks ?? [],
-    payload?.items ?? [],
-    payload?.results ?? [],
-    payload?.data?.tracks ?? [],
-    payload?.data?.items ?? [],
-    payload?.data?.results ?? [],
-    payload?.data?.currentTrack ? [payload.data.currentTrack] : [],
-    payload?.data?.nowPlaying ? [payload.data.nowPlaying] : [],
-    payload?.data?.latestTrack ? [payload.data.latestTrack] : []
-  );
-};
-
-const parseGenericNowPlayingTrack = (payload: any): NowPlayingTrack | null => {
-  const normalizedPayload = normalizeArrowPayload(payload);
-  const candidatePool = getNestedTrackCandidates(normalizedPayload);
-  const candidate = candidatePool.find((entry) => {
-    if (!entry || typeof entry !== 'object') {
-      return false;
-    }
-
-    return (
-      entry.artist || entry.title || entry.song || entry.track || entry.nowPlaying || entry.name || entry.station
-    );
-  });
-
-  const artist =
-    candidate?.artist?.toString().trim() ??
-    normalizedPayload?.artist?.toString().trim() ??
-    normalizedPayload?.station?.toString().trim() ??
-    normalizedPayload?.name?.toString().trim() ??
-    '';
-  const song =
-    candidate?.title?.toString().trim() ??
-    candidate?.song?.toString().trim() ??
-    candidate?.track?.toString().trim() ??
-    candidate?.nowPlaying?.toString().trim() ??
-    normalizedPayload?.title?.toString().trim() ??
-    normalizedPayload?.song?.toString().trim() ??
-    normalizedPayload?.track?.toString().trim() ??
-    normalizedPayload?.nowPlaying?.toString().trim() ??
-    '';
-  const coverUrl =
-    candidate?.albumArt?.toString().trim() ??
-    candidate?.coverUrl?.toString().trim() ??
-    candidate?.image?.toString().trim() ??
-    candidate?.cover?.toString().trim() ??
-    candidate?.artwork?.toString().trim() ??
-    normalizedPayload?.image?.toString().trim() ??
-    normalizedPayload?.cover?.toString().trim() ??
-    normalizedPayload?.coverUrl?.toString().trim() ??
-    normalizedPayload?.artwork?.toString().trim() ??
-    normalizedPayload?.albumArt?.toString().trim() ??
-    '';
-
-  if (artist.length === 0 && song.length === 0) {
-    return null;
-  }
-
-  return { artist, song, coverUrl };
-};
-
-export const parseNowPlayingTrack = (preset: string, payload: any): NowPlayingTrack | null => {
-  const parser = nowPlayingPresets[preset]?.parser ?? 'generic';
-
-  if (parser === 'arrow') {
-    return parseArrowNowPlayingTrack(payload);
-  }
-
-  if (parser === 'sterren') {
-    return parseSterrenNowPlayingTrack(payload);
-  }
-
-  return parseGenericNowPlayingTrack(payload);
-};
-
-const extractFirstJsonObject = (content: string): string => {
-  const start = content.indexOf('{');
-  const end = content.lastIndexOf('}');
-
-  if (start === -1 || end === -1 || end < start) {
-    return '';
-  }
-
-  return content.slice(start, end + 1);
-};
-
-const parseNowPlayingPayload = (rawPayload: string): any | null => {
-  const raw = rawPayload.trim();
-  if (raw.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    // Continue with text wrapper extraction.
-  }
-
-  const markdownMarker = 'Markdown Content:';
-  const markerIndex = raw.indexOf(markdownMarker);
-  const markdownSection = markerIndex >= 0 ? raw.slice(markerIndex + markdownMarker.length).trim() : raw;
-  const jsonCandidate = extractFirstJsonObject(markdownSection);
-
-  if (jsonCandidate.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(jsonCandidate);
-  } catch {
-    return null;
-  }
-};
-
-const withNoCacheTimestamp = (url: string): string => {
-  if (url.includes('_=')) {
-    return url.replace(/_=(\d+)?/g, `_=${Date.now()}`);
-  }
-
-  return url;
-};
-
-const getExistingGlobalAudioPlayer = (): HTMLAudioElement | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  return window.__lpRadioGlobalPlayer ?? null;
-};
-
-const incrementGlobalAudioPlayerRefCount = (): number => {
-  if (typeof window === 'undefined') {
-    return 0;
-  }
-
-  const nextCount = (window.__lpRadioGlobalPlayerInstanceCount ?? 0) + 1;
-  window.__lpRadioGlobalPlayerInstanceCount = nextCount;
-  return nextCount;
-};
-
-const decrementGlobalAudioPlayerRefCount = (): number => {
-  if (typeof window === 'undefined') {
-    return 0;
-  }
-
-  const nextCount = Math.max(0, (window.__lpRadioGlobalPlayerInstanceCount ?? 0) - 1);
-  window.__lpRadioGlobalPlayerInstanceCount = nextCount;
-  return nextCount;
-};
-
-const getOrCreateGlobalAudioPlayer = (): HTMLAudioElement | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  if (!window.__lpRadioGlobalPlayer) {
-    const player = document.createElement('audio');
-    player.preload = 'none';
-    player.style.display = 'none';
-    player.setAttribute('data-lp-radio-player', 'global');
-    document.body.appendChild(player);
-    window.__lpRadioGlobalPlayer = player;
-  }
-
-  return window.__lpRadioGlobalPlayer;
-};
-
 export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVariables }) => {
   const NOW_PLAYING_ERROR_COOLDOWN_MS = 60_000;
-  const STREAM_STALL_THRESHOLD_MS = 10_000;
-  const STREAM_RESTART_COOLDOWN_MS = 15_000;
+  const MIN_DISC_SIZE = 60;
   const styles = useStyles2(getStyles);
-  const playerRef = useRef<HTMLAudioElement | null>(null);
-  const streamProgressRef = useRef({
-    lastTime: 0,
-    lastProgressAt: 0,
-    lastRestartAt: 0,
-  });
+  const theme = useTheme2();
 
   const safeOptions = useMemo(() => mergeOptions(options), [options]);
-  const displayDiscSize = Math.max(120, Math.min(safeOptions.discSize, width - 24, height - 48));
+  const displayDiscSize = Math.max(MIN_DISC_SIZE, Math.min(safeOptions.discSize, width - 24, height - 48));
 
   const getActiveStation = useCallback(
     (date: Date): StationOption => {
@@ -593,7 +295,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       if (
         safeOptions.thursdayOverride.enabled &&
         isOverrideDay(day, safeOptions.thursdayOverride.days) &&
-        hour >= safeOptions.thursdayOverride.startHour
+        hour >= safeOptions.thursdayOverride.startHour &&
+        hour < safeOptions.thursdayOverride.endHour
       ) {
         return safeOptions.thursdayOverride.station;
       }
@@ -604,13 +307,12 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   );
 
   const [now, setNow] = useState<Date>(() => new Date());
-  const [isPlaying, setIsPlaying] = useState(() => {
-    const existingPlayer = getExistingGlobalAudioPlayer();
-    return existingPlayer ? !existingPlayer.paused : false;
-  });
-  const playbackIntentRef = useRef<boolean>(isPlaying);
-  const [playbackError, setPlaybackError] = useState(false);
-  const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrack | null>(null);
+  const { playingUrl, hasPlaybackError: playbackError } = useSyncExternalStore(
+    subscribeToRadioPlayer,
+    getRadioPlayerSnapshot
+  );
+  const [nowPlaying, setNowPlaying] = useState<{ requestKey: string; track: NowPlayingTrack | null } | null>(null);
+  const [failedImageSrcs, setFailedImageSrcs] = useState<ReadonlySet<string>>(() => new Set());
   const [blockedNowPlayingKeys, setBlockedNowPlayingKeys] = useState<Record<string, number>>({});
 
   const currentStation = useMemo(() => getActiveStation(now), [getActiveStation, now]);
@@ -619,6 +321,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     () => resolveStation(currentStation, replaceVariables),
     [currentStation, replaceVariables]
   );
+  const isPlaying = playingUrl.length > 0 && playingUrl === resolvedStation.url;
   const goldMatch = replaceVariables(safeOptions.goldMatchText);
   const isGoldMode = goldMatch.length > 0 && resolvedStation.name.toLowerCase().includes(goldMatch.toLowerCase());
   const nowPlayingApiUrl = useMemo(
@@ -632,7 +335,10 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     legacyStationNowPlayingCorsProxyUrl ||
     nowPlayingPresets[resolvedStation.nowPlayingPreset]?.defaultCorsProxyUrl ||
     '';
-  const shouldShowNowPlaying = resolvedStation.nowPlayingPreset !== 'none' && nowPlayingApiUrl.length > 0;
+  const shouldShowNowPlaying =
+    resolvedStation.nowPlayingPreset !== 'none' &&
+    nowPlayingApiUrl.length > 0 &&
+    (isPlaying || !safeOptions.nowPlayingOnlyWhilePlaying);
   const nowPlayingRequestKey = `${resolvedStation.nowPlayingPreset}:${nowPlayingApiUrl}:${effectiveNowPlayingCorsProxyUrl}`;
   const nowPlayingBlockedUntil = blockedNowPlayingKeys[nowPlayingRequestKey] ?? 0;
   const isNowPlayingPollingDisabled = nowPlayingBlockedUntil > now.getTime();
@@ -640,192 +346,32 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
   const discBorderWidth = Math.max(0, safeOptions.discBorderWidth);
   const labelBorderWidth = Math.max(0, safeOptions.labelBorderWidth);
 
+  const playbackOptionsRef = useRef({
+    continuePlayback: safeOptions.continuePlaybackAcrossDashboards,
+    showStopButton: safeOptions.showStopButtonWithoutPanel,
+  });
+  const previousStreamUrlRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    const player = getOrCreateGlobalAudioPlayer();
-    if (!player) {
-      return;
-    }
-
-    incrementGlobalAudioPlayerRefCount();
-
-    playerRef.current = player;
-    streamProgressRef.current.lastProgressAt = Date.now();
-    streamProgressRef.current.lastTime = player.currentTime;
-
-    const onPlay = () => {
-      playbackIntentRef.current = true;
-      setIsPlaying(true);
+    playbackOptionsRef.current = {
+      continuePlayback: safeOptions.continuePlaybackAcrossDashboards,
+      showStopButton: safeOptions.showStopButtonWithoutPanel,
     };
-    const onPause = () => setIsPlaying(false);
-    const onProgress = () => {
-      streamProgressRef.current.lastTime = player.currentTime;
-      streamProgressRef.current.lastProgressAt = Date.now();
-    };
+  }, [safeOptions.continuePlaybackAcrossDashboards, safeOptions.showStopButtonWithoutPanel]);
 
-    player.addEventListener('play', onPlay);
-    player.addEventListener('pause', onPause);
-    player.addEventListener('playing', onProgress);
-    player.addEventListener('timeupdate', onProgress);
-    player.addEventListener('progress', onProgress);
-    player.addEventListener('loadeddata', onProgress);
-    player.addEventListener('canplay', onProgress);
+  useEffect(() => {
+    registerRadioPanel(playbackOptionsRef.current.continuePlayback);
 
     return () => {
-      player.removeEventListener('play', onPlay);
-      player.removeEventListener('pause', onPause);
-      player.removeEventListener('playing', onProgress);
-      player.removeEventListener('timeupdate', onProgress);
-      player.removeEventListener('progress', onProgress);
-      player.removeEventListener('loadeddata', onProgress);
-      player.removeEventListener('canplay', onProgress);
-
-      const remainingInstances = decrementGlobalAudioPlayerRefCount();
-      const shouldPausePlayer = !safeOptions.continuePlaybackAcrossDashboards || remainingInstances === 0;
-
-      if (shouldPausePlayer) {
-        player.pause();
-      }
-
-      if (remainingInstances === 0) {
-        player.removeAttribute('src');
-        player.load();
-        player.remove();
-        delete window.__lpRadioGlobalPlayer;
-        delete window.__lpRadioGlobalPlayerInstanceCount;
-      }
+      const { continuePlayback, showStopButton } = playbackOptionsRef.current;
+      unregisterRadioPanel(continuePlayback, showStopButton);
     };
-  }, [safeOptions.continuePlaybackAcrossDashboards]);
+  }, []);
 
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) {
-      return;
-    }
-
-    const currentStreamUrl = player.getAttribute('data-stream-url') ?? '';
-    const isSameStream = currentStreamUrl === resolvedStation.url;
-    const shouldKeepCurrentPlayback =
-      safeOptions.continuePlaybackAcrossDashboards &&
-      isSameStream &&
-      isPlaying &&
-      !player.paused;
-
-    if (shouldKeepCurrentPlayback) {
-      return;
-    }
-
-    player.src = resolvedStation.url;
-    player.setAttribute('data-stream-url', resolvedStation.url);
-    player.load();
-    streamProgressRef.current.lastTime = 0;
-    streamProgressRef.current.lastProgressAt = Date.now();
-    streamProgressRef.current.lastRestartAt = 0;
-
-    if (playbackIntentRef.current) {
-      player.play().catch(() => {
-        setIsPlaying(false);
-        setPlaybackError(true);
-      });
-    }
-  }, [resolvedStation, isPlaying, safeOptions.continuePlaybackAcrossDashboards]);
-
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player) {
-      return;
-    }
-
-    const watchdogIntervalMs = Math.max(10_000, safeOptions.checkIntervalSeconds * 1000);
-
-    const restartStreamIfStalled = async () => {
-      if (!playbackIntentRef.current) {
-        return;
-      }
-
-      const nowTs = Date.now();
-      const progress = streamProgressRef.current;
-
-      if (player.paused) {
-        const resumeOnCooldown = nowTs - progress.lastRestartAt < STREAM_RESTART_COOLDOWN_MS;
-        if (resumeOnCooldown) {
-          return;
-        }
-
-        const activeStreamUrl = player.getAttribute('data-stream-url') ?? resolvedStation.url;
-        if (!activeStreamUrl) {
-          return;
-        }
-
-        progress.lastRestartAt = nowTs;
-
-        try {
-          await player.play();
-          setPlaybackError(false);
-          return;
-        } catch {
-          try {
-            player.src = withNoCacheTimestamp(activeStreamUrl);
-            player.setAttribute('data-stream-url', activeStreamUrl);
-            player.load();
-            await player.play();
-            setPlaybackError(false);
-            progress.lastProgressAt = Date.now();
-            return;
-          } catch {
-            setPlaybackError(true);
-            return;
-          }
-        }
-      }
-
-      const hasAdvanced = player.currentTime > progress.lastTime + 0.1;
-
-      if (hasAdvanced) {
-        progress.lastTime = player.currentTime;
-        progress.lastProgressAt = nowTs;
-        return;
-      }
-
-      const stalledTooLong = nowTs - progress.lastProgressAt >= STREAM_STALL_THRESHOLD_MS;
-      const restartOnCooldown = nowTs - progress.lastRestartAt < STREAM_RESTART_COOLDOWN_MS;
-
-      if (!stalledTooLong || restartOnCooldown) {
-        return;
-      }
-
-      const activeStreamUrl = player.getAttribute('data-stream-url') ?? resolvedStation.url;
-      if (!activeStreamUrl) {
-        return;
-      }
-
-      progress.lastRestartAt = nowTs;
-
-      try {
-        player.pause();
-        player.src = withNoCacheTimestamp(activeStreamUrl);
-        player.setAttribute('data-stream-url', activeStreamUrl);
-        player.load();
-        await player.play();
-        setPlaybackError(false);
-        progress.lastProgressAt = Date.now();
-      } catch {
-        setPlaybackError(true);
-      }
-    };
-
-    const watchdog = window.setInterval(() => {
-      void restartStreamIfStalled();
-    }, watchdogIntervalMs);
-
-    return () => {
-      window.clearInterval(watchdog);
-    };
-  }, [
-    resolvedStation.url,
-    safeOptions.checkIntervalSeconds,
-    STREAM_STALL_THRESHOLD_MS,
-    STREAM_RESTART_COOLDOWN_MS,
-  ]);
+    followStation(resolvedStation.url, previousStreamUrlRef.current);
+    previousStreamUrlRef.current = resolvedStation.url;
+  }, [resolvedStation.url]);
 
   useEffect(() => {
     if (!shouldShowNowPlaying || isNowPlayingPollingDisabled) {
@@ -850,7 +396,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
         });
 
         if (!response.ok) {
-          return;
+          throw new Error(`Now playing request failed with status ${response.status}`);
         }
 
         const contentType = response.headers.get('content-type') ?? '';
@@ -858,12 +404,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
           ? await response.json()
           : parseNowPlayingPayload(await response.text());
 
-        if (!payload) {
-          return;
-        }
-
-        const parsedTrack = parseNowPlayingTrack(resolvedStation.nowPlayingPreset, payload);
-        setNowPlayingTrack(parsedTrack);
+        const parsedTrack = payload ? parseNowPlayingTrack(resolvedStation.nowPlayingPreset, payload) : null;
+        setNowPlaying({ requestKey: nowPlayingRequestKey, track: parsedTrack });
         setBlockedNowPlayingKeys((previousKeys) => {
           if (!(nowPlayingRequestKey in previousKeys)) {
             return previousKeys;
@@ -887,7 +429,7 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
             };
             return nextKeys;
           });
-          setNowPlayingTrack(null);
+          setNowPlaying(null);
         }
       }
     };
@@ -925,28 +467,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     };
   }, [safeOptions.checkIntervalSeconds]);
 
-  const onTogglePlay = async () => {
-    const player = playerRef.current;
-    if (!player) {
-      return;
-    }
-
-    if (player.paused) {
-      try {
-        await player.play();
-        playbackIntentRef.current = true;
-        setIsPlaying(true);
-        setPlaybackError(false);
-      } catch {
-        playbackIntentRef.current = false;
-        setPlaybackError(true);
-      }
-      return;
-    }
-
-    playbackIntentRef.current = false;
-    player.pause();
-    setIsPlaying(false);
+  const onTogglePlay = () => {
+    void togglePlayback(resolvedStation.url);
   };
 
   const noTrackAvailableText = replaceVariables(safeOptions.noTrackAvailableText || 'No track available');
@@ -956,14 +478,20 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
       ? `${replaceVariables(safeOptions.onAirPrefix)} ${resolvedStation.name}`
       : resolvedStation.name || replaceVariables(safeOptions.loadingText);
 
-  const activeNowPlayingTrack = shouldShowNowPlaying ? nowPlayingTrack : null;
+  // A track from the previous station must not linger after a station change.
+  const activeNowPlayingTrack =
+    shouldShowNowPlaying && nowPlaying?.requestKey === nowPlayingRequestKey ? nowPlaying.track : null;
 
-  const nowPlayingText = activeNowPlayingTrack
-    ? `${activeNowPlayingTrack.artist}${activeNowPlayingTrack.artist && activeNowPlayingTrack.song ? ' - ' : ''}${activeNowPlayingTrack.song}`
-    : shouldShowNowPlaying
-      ? noTrackAvailableText
-      : statusText;
-  const labelImageSrc = activeNowPlayingTrack?.coverUrl || resolvedStation.logo;
+  // The start hint goes first: without it a blocked autoplay is invisible on stations with metadata.
+  const nowPlayingText = playbackError
+    ? statusText
+    : activeNowPlayingTrack
+      ? `${activeNowPlayingTrack.artist}${activeNowPlayingTrack.artist && activeNowPlayingTrack.song ? ' - ' : ''}${activeNowPlayingTrack.song}`
+      : shouldShowNowPlaying
+        ? noTrackAvailableText
+        : statusText;
+  const coverImageSrc = activeNowPlayingTrack?.coverUrl ?? '';
+  const labelImageSrc = coverImageSrc && !failedImageSrcs.has(coverImageSrc) ? coverImageSrc : resolvedStation.logo;
   const labelAltText = activeNowPlayingTrack
     ? `${activeNowPlayingTrack.artist} - ${activeNowPlayingTrack.song}`
     : resolvedStation.name;
@@ -972,11 +500,11 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
     <div
       className={styles.panel}
       style={{
-        border: `${panelBorderWidth}px solid ${safeOptions.panelBorderColor}`,
+        border: `${panelBorderWidth}px solid ${theme.visualization.getColorByName(safeOptions.panelBorderColor)}`,
         borderRadius: panelBorderWidth > 0 ? 12 : 0,
       }}
     >
-      <div className={cx(styles.trackInfo, isGoldMode && styles.goldText)} data-testid="track-info">
+      <div className={cx(styles.trackInfo, isGoldMode && styles.goldText)} title={nowPlayingText} data-testid="track-info">
         {nowPlayingText}
       </div>
 
@@ -985,6 +513,8 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
         style={{ width: displayDiscSize, height: displayDiscSize }}
         onClick={onTogglePlay}
         role="button"
+        aria-pressed={isPlaying}
+        aria-label={resolvedStation.name || statusText}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -1002,14 +532,21 @@ export const SimplePanel: React.FC<Props> = ({ options, width, height, replaceVa
             isGoldMode && styles.goldDiscBorder,
             isPlaying && !isGoldMode && styles.playingBlueGlow
           )}
-          style={{ border: `${discBorderWidth}px solid ${safeOptions.discBorderColor}` }}
+          style={{ border: `${discBorderWidth}px solid ${theme.visualization.getColorByName(safeOptions.discBorderColor)}` }}
           data-testid="lp-disc"
         >
           <div
             className={styles.lpLabel}
-            style={{ border: `${labelBorderWidth}px solid ${safeOptions.labelBorderColor}` }}
+            style={{ border: `${labelBorderWidth}px solid ${theme.visualization.getColorByName(safeOptions.labelBorderColor)}` }}
           >
-            <img className={styles.labelImage} src={labelImageSrc} alt={labelAltText} />
+            {labelImageSrc && !failedImageSrcs.has(labelImageSrc) && (
+              <img
+                className={styles.labelImage}
+                src={labelImageSrc}
+                alt={labelAltText}
+                onError={() => setFailedImageSrcs((previousSrcs) => new Set(previousSrcs).add(labelImageSrc))}
+              />
+            )}
           </div>
           <div className={styles.centerHole} />
         </div>

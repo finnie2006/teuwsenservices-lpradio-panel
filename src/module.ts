@@ -1,6 +1,7 @@
 import { PanelPlugin } from '@grafana/data';
 import { defaultOptions, SimpleOptions } from './types';
 import { SimplePanel } from './components/SimplePanel';
+import { ClearableTextEditor } from './components/ClearableTextEditor';
 import { DayPresetSelectorEditor } from './components/DayPresetSelectorEditor';
 
 const nowPlayingPresetOptions = [
@@ -34,24 +35,30 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
     showIf: (config: SimpleOptions) => boolean
   ) => {
     builder
-      .addTextInput({
+      .addCustomEditor({
+        id: `${pathPrefix}.name`,
         path: `${pathPrefix}.name`,
         name: `${namePrefix} name`,
         defaultValue: defaultStation.name,
+        editor: ClearableTextEditor,
         category,
         showIf,
       })
-      .addTextInput({
+      .addCustomEditor({
+        id: `${pathPrefix}.url`,
         path: `${pathPrefix}.url`,
         name: `${namePrefix} stream URL`,
         defaultValue: defaultStation.url,
+        editor: ClearableTextEditor,
         category,
         showIf,
       })
-      .addTextInput({
+      .addCustomEditor({
+        id: `${pathPrefix}.logo`,
         path: `${pathPrefix}.logo`,
         name: `${namePrefix} logo URL`,
         defaultValue: defaultStation.logo,
+        editor: ClearableTextEditor,
         category,
         showIf,
       })
@@ -201,12 +208,28 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       category: ['Display'],
     })
     .addBooleanSwitch({
+      path: 'nowPlayingOnlyWhilePlaying',
+      name: 'Only fetch now playing while playing',
+      description: 'Avoids API and proxy requests from viewers who are not listening. A stopped panel shows the station name.',
+      defaultValue: defaultOptions.nowPlayingOnlyWhilePlaying,
+      category: ['Display'],
+    })
+    .addBooleanSwitch({
       path: 'continuePlaybackAcrossDashboards',
       name: 'Continue playback in playlists',
+      description: 'Keeps the radio playing after leaving this dashboard, also on dashboards without a radio panel.',
       defaultValue: defaultOptions.continuePlaybackAcrossDashboards,
       category: ['Display'],
     })
-    .addTextInput({
+    .addBooleanSwitch({
+      path: 'showStopButtonWithoutPanel',
+      name: 'Show stop button without panel',
+      description: 'Shows a small stop button while the radio plays on a dashboard without a radio panel. Disable for unattended screens.',
+      defaultValue: defaultOptions.showStopButtonWithoutPanel,
+      category: ['Display'],
+      showIf: (config) => config.continuePlaybackAcrossDashboards,
+    })
+    .addColorPicker({
       path: 'panelBorderColor',
       name: 'Panel border color',
       defaultValue: defaultOptions.panelBorderColor,
@@ -223,7 +246,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       },
       category: ['Styling'],
     })
-    .addTextInput({
+    .addColorPicker({
       path: 'discBorderColor',
       name: 'Disc border color',
       defaultValue: defaultOptions.discBorderColor,
@@ -240,7 +263,7 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       },
       category: ['Styling'],
     })
-    .addTextInput({
+    .addColorPicker({
       path: 'labelBorderColor',
       name: 'Label border color',
       defaultValue: defaultOptions.labelBorderColor,
@@ -283,6 +306,19 @@ export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOption
       settings: {
         min: 0,
         max: 23,
+        integer: true,
+      },
+      category: ['Schedule override'],
+      showIf: (config) => config.thursdayOverride?.enabled,
+    })
+    .addNumberInput({
+      path: 'thursdayOverride.endHour',
+      name: 'Override ends at hour',
+      description: 'The override stops at the start of this hour. Use 24 to keep it until midnight.',
+      defaultValue: defaultOptions.thursdayOverride.endHour,
+      settings: {
+        min: 1,
+        max: 24,
         integer: true,
       },
       category: ['Schedule override'],

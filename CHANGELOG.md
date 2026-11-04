@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.4.0 (2026-11-04)
+
+### Added
+
+- Added a small stop button while the radio plays on a dashboard without a radio panel, with an option to hide it.
+- Added an end hour to the timed override.
+- Added the option `Only fetch now playing while playing`, enabled by default.
+- Playback now resumes after the full page reload Grafana does during long playlist runs, when the browser allows it.
+
+### Changed
+
+- The stream watchdog now runs independently of the panel and checks every 5 seconds instead of following the schedule check interval.
+- A stopped panel shows the station name instead of track information by default.
+- The timed override is now disabled by default. Saved panels keep their stored setting.
+- Station name, stream URL and logo URL can now be left empty instead of falling back to the default station.
+- A scheduled station without a stream URL stops the radio. Playback resumes by itself at the next station with a stream.
+- Border colors now use a color picker. Existing color values keep working.
+
+### Fixed
+
+- Fixed playback stopping when a playlist moved to a dashboard without a radio panel.
+- Fixed the watchdog restarting the stream after a pause from media keys, browser controls, or another radio panel.
+- Fixed several radio panels on one dashboard: clicking a panel now plays that panel's station.
+- Fixed the `Start hint text` not being visible on stations with now playing metadata.
+- Fixed custom JSON APIs showing `[object Object]` or the station name instead of the track for nested payloads.
+- Fixed empty strings blocking fallback values in now playing parsing.
+- Fixed the previous track staying visible after a station change or a failed now playing request.
+- Broken cover images now fall back to the station logo, without retrying endlessly when the logo is broken too.
+- Fixed now playing requests without a pause after emptying the schedule check interval field.
+- The track text and disc now fit in small panels.
+
 ## 1.3.0 (2026-08-12)
 
 ### Added
